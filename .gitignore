@@ -1,0 +1,25 @@
+# Deno cache (optional, usually okay to keep)
+# deno_dir/
+
+# VS Code settings
+.vscode/
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Docker-related
+docker-compose.override.yml
+*.local
+*.pid
+
+# Build artifacts (if you generate any)
+dist/
+build/
