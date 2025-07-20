@@ -8,9 +8,13 @@ WORKDIR /app
 COPY deno.json .
 COPY import_map.json .
 COPY src ./src/
+COPY tests ./tests/
 
 #Set permissions (optional in dev)
 RUN deno cache src/main.ts
 
 #Run the application
-CMD ["run", "--allow-net", "--allow-read", "src/main.ts"]
+CMD ["deno", "run", "--allow-net", "--allow-read", "src/main.ts"]
+
+# Uncomment this if you want to run tests in Docker (for dev environments)
+# CMD ["sh", "-c", "deno test --allow-read && deno run --allow-net --allow-read src/main.ts"]

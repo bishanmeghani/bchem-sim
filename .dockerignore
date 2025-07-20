@@ -1,0 +1,32 @@
+# Ignore Deno's dependency cache
+deno_dir/
+
+# Ignore VS Code workspace settings
+.vscode/
+
+# Ignore environment variable files
+.env
+.env.*
+
+# Ignore logs
+*.log
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Docker-related files
+docker-compose.override.yml
+*.local
+*.pid
+
+# Build artifacts
+dist/
+build/
+
+# Ignore Git-related files (optional, in case you use Git inside the container)
+.git/
+.gitignore
+
+# Ignore compiled test files if you're running tests locally
+tests/*.ts

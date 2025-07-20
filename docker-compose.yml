@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   backend:
     build: ./backend
@@ -9,3 +7,10 @@ services:
     volumes:
       - ./backend:/app
     command: deno run --allow-net --allow-read src/main.ts
+  test:
+    build: .
+    container_name: bchem-backend-tests
+    command: ["deno", "test", "--allow-read"]
+    volumes:
+      - ./tests:/app/tests  
+      - ./src:/app/src  
