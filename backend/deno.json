@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "lib": ["deno.ns", "deno.dom", "esnext"],
+    "lib": ["deno.ns", "dom", "esnext"],
     "strict": true
   },
   "importMap": "./import_map.json",

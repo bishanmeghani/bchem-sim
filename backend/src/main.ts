@@ -1,7 +1,2 @@
-Deno.serve({ port: 8000 }, () => {
-    return new Response("🧪 bchem-sim backend running...", {
-        headers: {
-            "Content-Type": "text/plain",
-        },
-    });
-});
+// src/main.ts or mod.ts
+Deno.serve((_req) => new Response("Hello from Deno!"));
