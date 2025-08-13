@@ -1,0 +1,7 @@
+{
+    "id": "feedB",
+    "mass_flow": 50,
+    "temperature": 300,
+    "pressure": 101325,
+    "composition_mass" : { "H2O": 1.0 }
+}
