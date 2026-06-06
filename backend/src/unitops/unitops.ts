@@ -1,6 +1,6 @@
 import { Stream, Composition } from '../types/types.ts';
 
-const HVAP_DATABASE: Record<string, number> = {
+const _HVAP_DATABASE: Record<string, number> = {
     water: 2260000,   // J/kg at 100°C
     ethanol: 841000   // J/kg at 78°C
 };

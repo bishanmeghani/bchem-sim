@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertAlmostEquals, assertThrows } from "@std/assert"
+import { assertEquals, assertAlmostEquals, assertThrows } from "@std/assert"
 import { Splitter } from "../../../src/unitops/unitops.ts"
 import { Stream } from "../../../src/types/types.ts"
 
