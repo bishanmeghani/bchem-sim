@@ -3,10 +3,12 @@
     "lib": ["deno.ns", "dom", "esnext"],
     "strict": true
   },
-  "importMap": "./import_map.json",
   "tasks": {
     "start": "deno run --allow-net --allow-read src/main.ts",
     "dev": "deno run --watch --allow-net --allow-read src/main.ts",
     "test": "deno test --allow-read"
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@^1.0.19"
   }
 }
