@@ -77,6 +77,12 @@ function runSimulationWithRecycle(freshFeed: Stream, targetT: number, targetP: n
 
 Deno.serve((_req) => {
     console.log(">>> NEW REQUEST", Date.now());
+    
+    const corsHeaders = {
+        "Access-Control-Allow-Origin": "*",
+        "Content-Type": "application/json"
+    };
+    
     const freshFeed: Stream = {
         id: "FRESH-FEED",
         massFlow: 10.0,
@@ -89,13 +95,13 @@ Deno.serve((_req) => {
     try {
         const simulationResult = runSimulationWithRecycle(freshFeed, 380, 183000, 35555);
         return new Response(JSON.stringify(simulationResult, null, 2), {
-            headers: { "Content-Type": "application/json" }
+            headers: corsHeaders
         });
     } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
         return new Response(JSON.stringify({ status: "Failed", error: errorMessage }), {
             status: 500,
-            headers: { "Content-Type": "application/json" }
+            headers: corsHeaders
         });
     }
 });
