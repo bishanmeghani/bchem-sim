@@ -1,5 +1,5 @@
 import { Stream } from './types/types.ts';
-import { Mixer, HeatExchanger, FlashDrum, Splitter, Pump } from './unitops/unitops.ts'
+import { Mixer, HeatExchanger, FlashDrum, Splitter, Pump } from './unitops/unitops.ts';
 
 function runSimulationWithRecycle(freshFeed: Stream, targetT: number, targetP: number, _targetQ: number) {
     console.log("🌀 [Solver] Initializing Property-Method Based Tear Loop...");

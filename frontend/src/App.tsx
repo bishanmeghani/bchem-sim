@@ -1,39 +1,47 @@
-import { useState, useCallback } from 'react';
-import { ReactFlow, Background, Controls, MiniMap, useNodesState, useEdgesState, addEdge } from '@xyflow/react';
-import type { Connection } from '@xyflow/react';
+import React, { useRef, useState, useCallback } from 'react';
+import { ReactFlow,  Background, Controls, useNodesState, useEdgesState, addEdge, useReactFlow } from '@xyflow/react';
+import type { Connection, Node, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import UnitOpNode from './nodes/UnitOpNode';
+import Palette from './components/Palette';
 
-const initialNodes = [
-  { id: 'feed',     position: {x: 50,  y: 250}, data: {label: "Feed"} },
-  { id: 'pump',     position: {x: 200, y: 250}, data: {label: "Pump"} },
-  { id: 'mixer',    position: {x: 350, y: 250}, data: {label: "Mixer"} },
-  { id: 'heater',   position: {x: 500, y: 250}, data: {label: "Heater"} },
-  { id: 'flash',    position: {x: 650, y: 250}, data: {label: "Flash Drum"} },
-  { id: 'vapor',    position: {x: 800, y: 100}, data: {label: "Vapor"} },
-  { id: 'splitter', position: {x: 800, y: 350}, data: {label: "Splitter"} },
-  { id: 'liquid',   position: {x: 950, y: 350}, data: {label: "Liquid"} }
-];
+const nodeTypes = { unitOp: UnitOpNode }
 
-const initialEdges = [
-  { id: 'e1', source: 'feed', target: 'pump' },
-  { id: 'e2', source: 'pump', target: 'mixer' },
-  { id: 'e3', source: 'mixer', target: 'heater' },
-  { id: 'e4', source: 'heater', target: 'flash' },
-  { id: 'e5', source: 'flash', target: 'vapor' },
-  { id: 'e6', source: 'flash', target: 'splitter' },
-  { id: 'e7', source: 'splitter', target: 'liquid' },
-  { id: 'e8', source: 'splitter', target: 'mixer', label: 'recycle' }
-];
+const initialNodes: Node[] = [];
+const initialEdges: Edge[] = [];
 
 export default function App() {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [result, setResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const { screenToFlowPosition } = useReactFlow();
   
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => addEdge(connection, eds)), [setEdges]
   );
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const type = e.dataTransfer.getData('nodeType');
+    const label = e.dataTransfer.getData('nodeLabel');
+    if (!type) return;
+
+    const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    const newNode = {
+      id: `${type}-${Date.now()}`,
+      type: 'unitOp',
+      position,
+      data: { label, nodeType: type }
+    };
+    setNodes((nds) => nds.concat(newNode));
+  };
 
   const runSimulation = async () => {
     setLoading(true);
@@ -49,16 +57,20 @@ export default function App() {
   };
 
   return (
-    <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
-      <ReactFlow 
+    <div ref={reactFlowWrapper} style={{ width: '100vw', height: '100vh', position: 'relative' }}
+      onDragOver = {onDragOver}
+      onDrop = {onDrop}>
+      <ReactFlow
+        proOptions={{ hideAttribution: true }}
+        nodeTypes={nodeTypes}
         nodes={nodes} edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        deleteKeyCode="Delete"
         fitView>
         <Background />
         <Controls />
-        <MiniMap />
       </ReactFlow>
       <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 8}}>
         <button onClick={runSimulation} disabled={loading} style= {{ padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
@@ -70,6 +82,7 @@ export default function App() {
             </pre>
           )}
       </div>
+      <Palette />
     </div>
   );
 }
