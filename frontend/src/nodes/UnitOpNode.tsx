@@ -1,35 +1,47 @@
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
+import { UNIT_OPS_DB } from '../data/unitOpsDatabase';
+import { UNIT_OP_SYMBOLS } from '../data/unitOpsSymbols';
 
-const nodeStyles: Record<string, { background: string; border: string; emoji: string }> = {
-    feed:       { background: '#dbeafe', border: '#2563eb', emoji: '🔵' },
-    pump:       { background: '#fef9c3', border: '#ca8a04', emoji: '⚙️' },
-    mixer:      { background: '#dcfce7', border: '#16a34a', emoji: '🔀' },
-    heater:     { background: '#fee2e2', border: '#dc2626', emoji: '🔥' },
-    flash:      { background: '#f3e8ff', border: '#9333ea', emoji: '⚗️' },
-    splitter:   { background: '#ffedd5', border: '#ea580c', emoji: '↔️' },
-    vapor:      { background: '#e0f2fe', border: '#0284c7', emoji: '💨' },
-    liquid:     { background: '#d1fae5', border: '#059669', emoji: '💧' },
+const positionMap: Record<string, Position> = {
+    top: Position.Top,
+    bottom: Position.Bottom,
+    left: Position.Left,
+    right: Position.Right
 };
 
-export default function UnitOpNode( { data, id }: NodeProps ) {
-    const style = nodeStyles[data.nodeType as string] ?? { background: '#f1f5f9', border: '#64748b', emoji: '📦' };
+export default function UnitOpNode({ data }: NodeProps) {
+    const nodeType = data.nodeType as string;
+    const converged = data.converged as boolean ?? false;
+    const renderSymbol = UNIT_OP_SYMBOLS[nodeType];
+    const symbol = renderSymbol ? renderSymbol(converged) : (
+        <svg width="36" height="36" viewBox="0 0 36 36">
+            <rect x="2" y="2" width="32" height="32" fill="none" stroke="#64748b" strokeWidth="1.5"/>
+        </svg>
+    );
+    const def = UNIT_OPS_DB[nodeType];
+    const handles = def?.handles ?? [];
+
     return (
         <div style={{
-            background: style.background,
-            border: '2px solid ${style.border}',
-            borderRadius: 8,
-            padding: '8px 16px',
-            minWidth: 80,
-            textAlign: 'center',
-            fontSize: 12,
-            fontWeight: 600,
-            color: '#1e293b'
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            textAlign: "center",
         }}>
-            <Handle type="target" position={Position.Left} />
-            <div>{style.emoji}</div>
-            <div>{String(data.label)}</div>
-            <Handle type="source" position={Position.Right} />
+            {handles.map(h => (
+                <Handle
+                    key={h.id}
+                    id={h.id}
+                    type={h.type}
+                    position={positionMap[h.position]}
+                    style={{ background: '#94a3b8', width: 7, height: 7 }}
+                />
+            ))}
+            {symbol}
+            <div style= {{ color: "#94a3b8", fontSize: 9, marginTop: 2, fontFamily: "monospace", letterSpacing: 0.5 }}>
+                {String(data.label).toUpperCase()}
+            </div>
         </div>
     );
 }
