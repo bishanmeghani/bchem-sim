@@ -1,7 +1,8 @@
 import React, { useRef, useState, useCallback } from 'react';
-import { ReactFlow,  Background, Controls, useNodesState, useEdgesState, addEdge, useReactFlow } from '@xyflow/react';
+import { ReactFlow, Background, Controls, useNodesState, useEdgesState, addEdge, useReactFlow } from '@xyflow/react';
 import type { Connection, Node, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import Layout from './components/Layout';
 import UnitOpNode from './nodes/UnitOpNode';
 import Palette from './components/Palette';
 import toast from 'react-hot-toast';
@@ -88,33 +89,25 @@ export default function App() {
   };
 
   return (
-    <div ref={reactFlowWrapper} style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}
-      onDragOver = {onDragOver}
-      onDrop = {onDrop}>
-      <ReactFlow
-        snapToGrid={true}
-        snapGrid={[20, 20]}
-        proOptions={{ hideAttribution: true }}
-        nodeTypes={nodeTypes}
-        nodes={nodes} edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        deleteKeyCode="Delete"
-        fitView>
-        <Controls />
-      </ReactFlow>
-      <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 8}}>
-        <button onClick={runSimulation} disabled={loading} style= {{ padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
-          {loading ? 'Running...' : 'Run Simulation'}
-        </button>
-          {result && (
-            <pre style={{ background: '#1e1e1e', color: '#d4d4d4', padding: 12, borderRadius: 6, fontSize: 11, maxHeight: 400, overflow: 'auto', maxWidth: 350 }}>
-              {result}
-            </pre>
-          )}
+    <Layout>
+      <div ref={reactFlowWrapper} style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
+        onDragOver = {onDragOver}
+        onDrop = {onDrop}>
+        <ReactFlow
+          snapToGrid={true}
+          snapGrid={[20, 20]}
+          proOptions={{ hideAttribution: true }}
+          nodeTypes={nodeTypes}
+          nodes={nodes} edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          deleteKeyCode="Delete"
+          fitView>
+          <Controls />
+        </ReactFlow>
+        <Palette />
       </div>
-      <Palette />
-    </div>
+    </Layout>
   );
 }

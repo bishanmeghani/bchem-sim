@@ -1,6 +1,6 @@
-import type React from "react"
-import { UNIT_OPS_DB, PALETTE_CATEGORIES } from "../data/unitOpsDatabase";
-import { UNIT_OP_SYMBOLS } from "../data/unitOpsSymbols";
+import type React from 'react'
+import { UNIT_OPS_DB, PALETTE_CATEGORIES } from '../data/unitOpsDatabase';
+import { UNIT_OP_SYMBOLS } from '../data/unitOpsSymbols';
 
 export default function Palette() {
     const onDragStart = (e: React.DragEvent, type: string, label: string) => {
