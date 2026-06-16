@@ -89,7 +89,7 @@ export default function App() {
   };
 
   return (
-    <Layout>
+    <Layout onRun={runSimulation}>
       <div ref={reactFlowWrapper} style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
         onDragOver = {onDragOver}
         onDrop = {onDrop}>

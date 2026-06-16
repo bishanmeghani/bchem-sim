@@ -1,16 +1,18 @@
-import type { ReactNode } from 'react'
+import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 
 interface LayoutProps {
     children: ReactNode;
+    onRun?: () => void;
 }
 
-export default function Layout({ children }: LayoutProps) {
+export default function Layout({ children, onRun }: LayoutProps) {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', background: '#0f172a', color: '#e2e8f0' }}>
             
             {/* Menu Bar */}
             <div style={{ height: 36, background: '#1e293b', borderBottom: '1px solid #334155', display: 'flex', alignItems: 'center', padding: '0 8px', gap: 4, flexShrink: 0 }}>
-                <MenuBar />
+                <MenuBar onRun={onRun} />
             </div>
 
             {/* Main area */}
@@ -42,19 +44,66 @@ export default function Layout({ children }: LayoutProps) {
     );
 }
 
-function MenuBar() {
-    const menus = ['File', 'Edit', 'Run', 'View', 'Tools', 'Help'];
+function MenuBar({ onRun }: { onRun?: () => void }) {
+    const [activeMenu, setActiveMenu] = useState<string | null>(null);
+    
+    useEffect(() => {
+        const handleClickOutside = () => setActiveMenu(null);
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);        
+    }, []);
+
+    const menuItems: Record<string, { label: string; action?: () => void}[]> = {
+        File: [
+            { label: 'New' },
+            { label: 'Save' },
+            { label: 'Export' },
+        ],
+        Edit: [
+            { label: 'Undo' },
+            { label: 'Redo' },
+            { label: 'Delete' },
+        ],
+        Run: [
+            { label: 'Run Simulation', action: onRun },
+        ],
+        View: [
+            { label: 'Fit to Screen' },
+        ],
+        Tools: [
+            { label: 'Settings' },
+        ],
+        Help: [
+            { label: 'About' },
+        ],
+    };
+
     return (
-        <>
-            {menus.map(menu => (
-                <div key={menu} style={{
-                    padding: '4px 10px', fontSize: 12, color: '#94a3b8', cursor: 'pointer', borderRadius: 4,
-                }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                    {menu}
-                </div>
-            ))}
-        </>
+        <div style={{ display: 'flex', position: 'relative' }}>
+            {Object.entries(menuItems).map(([menu, items]) => (
+                <div key={menu} style={{ position: 'relative' }}>
+                    <div
+                        onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === menu ? null : menu); }}
+                        style={{ padding: '4px 10px', fontSize: 12, color: '#94a3b8', cursor: 'pointer', borderRadius: 4, background: activeMenu === menu ? '#334155' : 'transparent' }}>
+                        {menu}
+                    </div>
+                    {activeMenu === menu && (
+                        <div style={{
+                            position: 'absolute', top: '100%', left: 0, zIndex: 100, background: '#1e293b', border: '1px solid #334155', borderRadius: 6, minWidth: 160, boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
+                        }}>
+                            {items.map(item => (
+                                <div key={item.label}
+                                    onClick={() => { item.action?.(); setActiveMenu(null); }}
+                                    style={{ padding: '6px 12px', fontSize: 12, color: '#e2e8f0', cursor: 'pointer' }}
+                                    onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                    {item.label}
+                               </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        ))}
+    </div>
     );
 }
