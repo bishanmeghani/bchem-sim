@@ -4,15 +4,19 @@ import type { ReactNode } from 'react';
 interface LayoutProps {
     children: ReactNode;
     onRun?: () => void;
+    onNew?: () => void;
+    onFitView?: () => void;
+    result?: string | null;
+    loading?: boolean;
 }
 
-export default function Layout({ children, onRun }: LayoutProps) {
+export default function Layout({ children, onRun, onNew, onFitView, result, loading }: LayoutProps) {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', background: '#0f172a', color: '#e2e8f0' }}>
             
             {/* Menu Bar */}
             <div style={{ height: 36, background: '#1e293b', borderBottom: '1px solid #334155', display: 'flex', alignItems: 'center', padding: '0 8px', gap: 4, flexShrink: 0 }}>
-                <MenuBar onRun={onRun} />
+                <MenuBar onRun={onRun} onNew={onNew} onFitView={onFitView} />
             </div>
 
             {/* Main area */}
@@ -36,15 +40,18 @@ export default function Layout({ children, onRun }: LayoutProps) {
             </div>
 
             {/* Messages — outside the flex row, at the bottom */}
-            <div style={{ height: 150, background: '#1e293b', borderTop: '1px solid #334155', flexShrink: 0 }}>
+            <div style={{ height: 150, background: '#1e293b', borderTop: '1px solid #334155', flexShrink: 0, overflowY: 'auto' }}>
                 <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: 1 }}>MESSAGES</div>
+                {loading && <div style={{ padding: '4px 12px', fontSize: 11, color: '#94a3b8' }}>Running simulation...</div>}
+                {result && <pre style={{ padding: '4px 12px', fontSize: 10, color: '#94a3b8', margin: 0, whiteSpace: 'pre-wrap' }}>{result}</pre>}
+
             </div>
 
         </div>
     );
 }
 
-function MenuBar({ onRun }: { onRun?: () => void }) {
+function MenuBar({ onRun, onNew, onFitView }: { onRun?: () => void; onNew?: () => void; onFitView?: () => void}) {
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     
     useEffect(() => {
@@ -55,7 +62,7 @@ function MenuBar({ onRun }: { onRun?: () => void }) {
 
     const menuItems: Record<string, { label: string; action?: () => void}[]> = {
         File: [
-            { label: 'New' },
+            { label: 'New', action: onNew },
             { label: 'Save' },
             { label: 'Export' },
         ],
@@ -68,7 +75,7 @@ function MenuBar({ onRun }: { onRun?: () => void }) {
             { label: 'Run Simulation', action: onRun },
         ],
         View: [
-            { label: 'Fit to Screen' },
+            { label: 'Fit to Screen', action: onFitView },
         ],
         Tools: [
             { label: 'Settings' },

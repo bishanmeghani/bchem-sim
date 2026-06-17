@@ -21,10 +21,10 @@ export const UNIT_OP_SYMBOLS: Record<string, (converged?: boolean) => JSX.Elemen
         </svg>
     ),
     heater: () => (
-        <svg width="36" height="24" viewBox="0 0 44 30">
-            <ellipse cx="22" cy="15" rx="20" ry="12" fill="none" stroke="#dc2626" strokeWidth="1.5"/>
-            <line x1="2" y1="15" x2="42" y2="15" stroke="#dc2626" strokeWidth="1.5"/>
-        </svg>
+        <svg width="30" height="30" viewBox="0 0 36 38">
+        <circle cx="18" cy="19" r="16" fill="none" stroke="#dc2626" strokeWidth="1.5"/>
+        <polyline points="3,22 12,22 18,11 24,22 33,22" fill="none" stroke="#dc2626" strokeWidth="1.5" strokeLinejoin="round"/>
+    </svg>
     ),
     flash: () => (
         <svg width="24" height="36" viewBox="0 0 36 52">

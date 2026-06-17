@@ -15,8 +15,13 @@ export default function App() {
   const [result, setResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, fitView } = useReactFlow();
   
+  const onNew = () => {
+    setNodes([]);
+    setEdges([]);
+  };
+
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => {
       const streamNumber = eds.length + 1;
@@ -89,7 +94,7 @@ export default function App() {
   };
 
   return (
-    <Layout onRun={runSimulation}>
+    <Layout onRun={runSimulation} onNew={onNew} onFitView={fitView} result={result} loading={loading}>
       <div ref={reactFlowWrapper} style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
         onDragOver = {onDragOver}
         onDrop = {onDrop}>
