@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import Palette from './Palette';
 
 interface LayoutProps {
     children: ReactNode;
@@ -32,10 +33,8 @@ export default function Layout({ children, onRun, onNew, onFitView, result, load
                     {children}
                 </div>
 
-                {/* Properties */}
-                <div style={{ width: 220, background: '#1e293b', borderLeft: '1px solid #334155', flexShrink: 0 }}>
-                    <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: 1 }}>PROPERTIES</div>
-                </div>
+                {/* Right Panel */}
+                <RightPanel />
 
             </div>
 
@@ -112,5 +111,38 @@ function MenuBar({ onRun, onNew, onFitView }: { onRun?: () => void; onNew?: () =
             </div>
         ))}
     </div>
+    );
+}
+
+function RightPanel() {
+    const [activeTab, setActiveTab] = useState<'unitops' | 'properties'>('unitops');
+
+    return (
+        <div style={{ width: 220, background: '#1e293b', borderLeft: '1px solid #334155', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+            {/*Tabs*/}
+            <div style={{ display: 'flex', borderBottom: '1px solid #334155' }}>
+                {(['unitops', 'properties'] as const).map(tab => (
+                    <div key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        style={{
+                            flex: 1, padding: '6px 8px', fontSize: 10, fontWeight: 700,
+                            color: activeTab === tab ? '#e2e8f0' : '#475569',
+                            background: activeTab === tab ? '#0f172a' : 'transparent',
+                            cursor: 'pointer', textAlign: 'center', letterSpacing: 0.5
+                        }}>
+                        {tab === 'unitops' ? 'UNIT OPS' : 'PROPERTIES'}
+                    </div>
+                ))}
+            </div>
+            {/* Content */}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+                {activeTab === 'unitops' && <Palette embedded />}
+                {activeTab === 'properties' && (
+                    <div style={{ padding: '8px 12px', fontSize: 11, color: '#475569' }}>
+                        Select a unit to view properties.
+                    </div>
+                )}
+            </div>
+        </div>
     );
 }

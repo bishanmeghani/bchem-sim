@@ -2,7 +2,7 @@ import type React from 'react'
 import { UNIT_OPS_DB, PALETTE_CATEGORIES } from '../data/unitOpsDatabase';
 import { UNIT_OP_SYMBOLS } from '../data/unitOpsSymbols';
 
-export default function Palette() {
+export default function Palette({ embedded = false } : { embedded?: boolean }) {
     const onDragStart = (e: React.DragEvent, type: string, label: string) => {
         e.dataTransfer.setData('nodeType', type);
         e.dataTransfer.setData('nodeLabel', label);
@@ -10,14 +10,13 @@ export default function Palette() {
     };
 
     return (
-        <div style={{
+        <div style={embedded ? { padding: 12, display: 'flex', flexDirection: 'column', gap: 6 } : {
             position: 'absolute', top:16, right: 16, zIndex: 10,
             background: '#1e293b', borderRadius: 8, padding: 12,
             display: 'flex', flexDirection: 'column', gap: 6, minWidth: 130, 
             maxHeight: 'calc(100vh - 32px)',
             overflowY: 'auto'
         }}>
-            <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, marginBottom: 4 }}>UNIT OPS</div>
             {PALETTE_CATEGORIES.map(category => {
                 const ops = Object.values(UNIT_OPS_DB).filter(op => op.category === category);
                 if (ops.length === 0) return null;

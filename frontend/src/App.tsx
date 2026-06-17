@@ -4,7 +4,6 @@ import type { Connection, Node, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import Layout from './components/Layout';
 import UnitOpNode from './nodes/UnitOpNode';
-import Palette from './components/Palette';
 import toast from 'react-hot-toast';
 
 const nodeTypes = { unitOp: UnitOpNode }
@@ -111,7 +110,6 @@ export default function App() {
           fitView>
           <Controls />
         </ReactFlow>
-        <Palette />
       </div>
     </Layout>
   );
