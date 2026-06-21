@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import Palette from './Palette';
+import Explorer from './Explorer';
 
 interface LayoutProps {
     children: ReactNode;
@@ -9,9 +10,70 @@ interface LayoutProps {
     onFitView?: () => void;
     result?: string | null;
     loading?: boolean;
+    components?: string[];
+    onComponentsChange?: (c: string[]) => void;
 }
 
-export default function Layout({ children, onRun, onNew, onFitView, result, loading }: LayoutProps) {
+const COLLAPSE_THRESHOLD = 125;
+
+export default function Layout({ children, onRun, onNew, onFitView, result, loading, components, onComponentsChange }: LayoutProps) {
+    const [explorerWidth, setExplorerWidth] = useState(200);
+    const [messagesHeight, setMessagesHeight] = useState(150);
+    const [rightPanelWidth, setRightPanelWidth] = useState(200);
+
+    const onExplorerDrag = (e: React.MouseEvent) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const startWidth = explorerWidth;
+        const onMouseMove = (e: MouseEvent) => {
+            const newWidth = startWidth + e.clientX - startX 
+            setExplorerWidth(newWidth < COLLAPSE_THRESHOLD ? 32 : Math.min(500, newWidth));
+        };
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp)
+    };
+
+    const onRightPanelDrag = (e: React.MouseEvent) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const startWidth = rightPanelWidth;
+
+        const onMouseMove = (e: MouseEvent) => {
+            const newWidth = startWidth - (e.clientX - startX);
+            setRightPanelWidth(newWidth < COLLAPSE_THRESHOLD ? 32 : Math.min(500, newWidth));
+        };
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp)
+    };
+
+    const onMessagesDrag = (e: React.MouseEvent) => {
+        e.preventDefault();
+        const startY = e.clientY;
+        const startHeight = messagesHeight;
+        const onMouseMove = (e: MouseEvent) => {
+            const newHeight = startHeight - (e.clientY - startY);
+            setMessagesHeight(newHeight < 60 ? 32 : Math.min(400, newHeight));
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
+    const explorerCollapsed = explorerWidth <= 32;
+    const messagesCollapsed = messagesHeight <= 32;
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', background: '#0f172a', color: '#e2e8f0' }}>
             
@@ -24,8 +86,20 @@ export default function Layout({ children, onRun, onNew, onFitView, result, load
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                 
                 {/* Explorer */}
-                <div style={{ width: 200, background: '#1e293b', borderRight: '1px solid #334155', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-                    <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: 1 }}>EXPLORER</div>
+                <div style={{ width: explorerWidth, background: '#1e293b', borderRight: '1px solid #334155', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden', position: 'relative' }}>
+                    <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: 1, display: 'flex', justifyContent: explorerCollapsed ? 'center' : 'space-between', alignItems: 'center' }}>
+                        {!explorerCollapsed && <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: 1 }}>EXPLORER</span>}
+                        <span onClick={() => setExplorerWidth(explorerCollapsed ? 200 : 32)} style={{ cursor: 'pointer', color: '#475569', fontSize: 14 }}>
+                            {explorerCollapsed ? '▶' : '◀'}
+                        </span>
+                    </div>
+                    {!explorerCollapsed && <Explorer components={components ?? []} onComponentsChange={onComponentsChange ?? (() => {})} />}
+                        <div
+                            onMouseDown={onExplorerDrag}
+                            style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 4, cursor: 'ew-resize', background: 'transparent', zIndex: 10 }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        />
                 </div>
 
                 {/* Canvas */}
@@ -34,12 +108,18 @@ export default function Layout({ children, onRun, onNew, onFitView, result, load
                 </div>
 
                 {/* Right Panel */}
-                <RightPanel />
+                <RightPanel width={rightPanelWidth} onDrag={onRightPanelDrag} onCollapse={() => setRightPanelWidth(32)} onExpand={() => setRightPanelWidth(220)}/>
 
             </div>
 
             {/* Messages — outside the flex row, at the bottom */}
-            <div style={{ height: 150, background: '#1e293b', borderTop: '1px solid #334155', flexShrink: 0, overflowY: 'auto' }}>
+            <div style={{ height: messagesHeight, background: '#1e293b', borderTop: 'none', flexShrink: 0, overflowY: 'auto', position: 'relative' }}>
+                <div
+                    onMouseDown={onMessagesDrag}
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, cursor: 'ns-resize', background: 'transparent', zIndex: 10 }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                />
                 <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: 1 }}>MESSAGES</div>
                 {loading && <div style={{ padding: '4px 12px', fontSize: 11, color: '#94a3b8' }}>Running simulation...</div>}
                 {result && <pre style={{ padding: '4px 12px', fontSize: 10, color: '#94a3b8', margin: 0, whiteSpace: 'pre-wrap' }}>{result}</pre>}
@@ -114,14 +194,19 @@ function MenuBar({ onRun, onNew, onFitView }: { onRun?: () => void; onNew?: () =
     );
 }
 
-function RightPanel() {
+function RightPanel({ width, onDrag, onCollapse, onExpand }: { width: number; onDrag: (e: React.MouseEvent) => void; onCollapse: () => void; onExpand: () => void}) {
     const [activeTab, setActiveTab] = useState<'unitops' | 'properties'>('unitops');
+    const collapsed = width <= 32;
 
     return (
-        <div style={{ width: 220, background: '#1e293b', borderLeft: '1px solid #334155', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ width, background: '#1e293b', borderLeft: '1px solid #334155', flexShrink: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+            <div onMouseDown={onDrag}
+                style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, cursor: 'ew-resize', background: 'transparent', zIndex: 10 }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')} />
             {/*Tabs*/}
-            <div style={{ display: 'flex', borderBottom: '1px solid #334155' }}>
-                {(['unitops', 'properties'] as const).map(tab => (
+            <div style={{ display: 'flex', borderBottom: '1px solid #334155', alignItems: 'center' }}>
+                {!collapsed && (['unitops', 'properties'] as const).map(tab => (
                     <div key={tab}
                         onClick={() => setActiveTab(tab)}
                         style={{
@@ -133,16 +218,22 @@ function RightPanel() {
                         {tab === 'unitops' ? 'UNIT OPS' : 'PROPERTIES'}
                     </div>
                 ))}
+                <span onClick={() => collapsed ? onExpand() : onCollapse()} 
+                    style={{ cursor: 'pointer', color: '#475569', fontSize: 12, padding: '6px 8px', marginLeft: 'auto' }}>
+                    {collapsed ? '◀' : '▶'}
+                </span>
             </div>
             {/* Content */}
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-                {activeTab === 'unitops' && <Palette embedded />}
-                {activeTab === 'properties' && (
-                    <div style={{ padding: '8px 12px', fontSize: 11, color: '#475569' }}>
-                        Select a unit to view properties.
-                    </div>
-                )}
-            </div>
+            {!collapsed && (
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                    {activeTab === 'unitops' && <Palette embedded />}
+                    {activeTab === 'properties' && (
+                        <div style={{ padding: '8px 12px', fontSize: 11, color: '#475569' }}>
+                            Select a unit to view properties.
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

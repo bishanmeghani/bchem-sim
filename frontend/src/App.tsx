@@ -13,6 +13,7 @@ export default function App() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [result, setResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [components, setComponents] = useState<string[]>(['water', 'ethanol']);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const { screenToFlowPosition, fitView } = useReactFlow();
   
@@ -93,7 +94,7 @@ export default function App() {
   };
 
   return (
-    <Layout onRun={runSimulation} onNew={onNew} onFitView={fitView} result={result} loading={loading}>
+    <Layout onRun={runSimulation} onNew={onNew} onFitView={fitView} result={result} loading={loading} components={components} onComponentsChange={setComponents}>
       <div ref={reactFlowWrapper} style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
         onDragOver = {onDragOver}
         onDrop = {onDrop}>
