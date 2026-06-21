@@ -113,17 +113,19 @@ export default function Layout({ children, onRun, onNew, onFitView, result, load
             </div>
 
             {/* Messages — outside the flex row, at the bottom */}
-            <div style={{ height: messagesHeight, background: '#1e293b', borderTop: 'none', flexShrink: 0, overflowY: 'auto', position: 'relative' }}>
-                <div
-                    onMouseDown={onMessagesDrag}
+            <div style={{ height: messagesHeight, background: '#1e293b', borderTop: '1px solid #334155', flexShrink: 0, overflowY: 'auto', position: 'relative' }}>
+                <div onMouseDown={onMessagesDrag}
                     style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, cursor: 'ns-resize', background: 'transparent', zIndex: 10 }}
                     onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                />
-                <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: 1 }}>MESSAGES</div>
-                {loading && <div style={{ padding: '4px 12px', fontSize: 11, color: '#94a3b8' }}>Running simulation...</div>}
-                {result && <pre style={{ padding: '4px 12px', fontSize: 10, color: '#94a3b8', margin: 0, whiteSpace: 'pre-wrap' }}>{result}</pre>}
-
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')} />
+                <div style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    {!messagesCollapsed && <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: 1 }}>MESSAGES</span>}
+                    <span onClick={() => setMessagesHeight(messagesCollapsed ? 150 : 32)} style={{ cursor: 'pointer', color: '#475569', fontSize: 14, marginLeft: 'auto' }}>
+                        {messagesCollapsed ? '▲' : '▼'}
+                    </span>
+                </div>
+                {!messagesCollapsed && loading && <div style={{ padding: '4px 12px', fontSize: 11, color: '#94a3b8' }}>Running simulation...</div>}
+                {!messagesCollapsed && result && <pre style={{ padding: '4px 12px', fontSize: 10, color: '#94a3b8', margin: 0, whiteSpace: 'pre-wrap' }}>{result}</pre>}
             </div>
 
         </div>

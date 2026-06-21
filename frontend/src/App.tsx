@@ -48,7 +48,7 @@ export default function App() {
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const type = e.dataTransfer.getData('nodeType');
-    const label = e.dataTransfer.getData('nodeLabel');
+    
     if (!type) return;
 
     if (type !== "feed" && !hasFeed()) {
@@ -57,6 +57,21 @@ export default function App() {
     }
 
     const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    const getNodeLabel = (type: string, existingNodes: Node[]) => {
+      const prefixMap: Record<string, string> = {
+        feed: 'F',
+        pump: 'P',
+        mixer: 'M',
+        heater: 'H',
+        flash: 'V',
+        splitter: 'SP',
+        outlet: 'O',
+      };
+      const prefix = prefixMap[type] ?? type[0].toUpperCase();
+      const count = existingNodes.filter(n => n.data.nodeType === type).length + 1;
+      return `${prefix}${count}`;
+    };
+    const label = getNodeLabel(type, nodes);
     const newNode = {
       id: `${type}-${Date.now()}`,
       type: 'unitOp',
@@ -64,7 +79,14 @@ export default function App() {
       data: { label, nodeType: type }
     };
     setNodes((nds) => nds.concat(newNode));
+
+    
+
+    
+    
   };
+
+  
 
   const runSimulation = async () => {
     const connectedNodeIds = new Set(edges.flatMap(e => [e.source, e.target]));

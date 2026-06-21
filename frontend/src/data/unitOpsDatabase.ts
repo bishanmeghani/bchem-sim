@@ -49,7 +49,8 @@ export const UNIT_OPS_DB: Record<string, UnitOpDef> = {
         maxOutlets: 1,
         converged: false,
         handles: [
-            { id: 'in', type: 'target', position: 'left' },
+            { id: 'in-1', type: 'target', position: 'left' },
+            { id: 'in-2', type: 'target', position: 'bottom' },
             { id: 'out', type: 'source', position: 'right' },
         ],
         description: "A mixer for combining multiple streams.",
@@ -90,7 +91,8 @@ export const UNIT_OPS_DB: Record<string, UnitOpDef> = {
         converged: false,
         handles: [
             { id: 'in', type: 'target', position: 'left' },
-            { id: 'out', type: 'source', position: 'right' },
+            { id: 'out-1', type: 'source', position: 'right' },
+            { id: 'out-2', type: 'source', position: 'bottom' },
         ],
         description: "A splitter for dividing a stream into multiple outlets.",
     },
