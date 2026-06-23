@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback } from 'react';
-import { ReactFlow, Background, Controls, useNodesState, useEdgesState, addEdge, useReactFlow } from '@xyflow/react';
+import { ReactFlow, Controls, useNodesState, useEdgesState, addEdge, useReactFlow, MarkerType } from '@xyflow/react';
 import type { Connection, Node, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import Layout from './components/Layout';
@@ -16,6 +16,8 @@ export default function App() {
   const [components, setComponents] = useState<string[]>(['water', 'ethanol']);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const { screenToFlowPosition, fitView } = useReactFlow();
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const selectedNode = nodes.find(n => n.id === selectedNodeId) ?? null;
   
   const onNew = () => {
     setNodes([]);
@@ -28,8 +30,9 @@ export default function App() {
       return addEdge({
         ...connection,
         label: `S${streamNumber}`,
-        type: 'smoothstep',
+        type: 'step',
         style: { stroke: '#64748b', strokeWidth: 1.5 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b', width: 15, height: 15},
         labelStyle: { fontSize: 10, fill: '#94a3b8' },
         labelBgStyle: { fill: 'rgba(15,23,42,0.8)', fillOpacity: 1 }, 
         labelBgPadding: [4, 2] as [number, number],
@@ -78,15 +81,8 @@ export default function App() {
       position,
       data: { label, nodeType: type }
     };
-    setNodes((nds) => nds.concat(newNode));
-
-    
-
-    
-    
+    setNodes((nds) => nds.concat(newNode));    
   };
-
-  
 
   const runSimulation = async () => {
     const connectedNodeIds = new Set(edges.flatMap(e => [e.source, e.target]));
@@ -115,8 +111,16 @@ export default function App() {
     }
   };
 
+  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    setSelectedNodeId(node.id);
+  }, []);
+
+  const onNodeDataChange = useCallback((id: string, newData: Record<string, unknown>) => {
+    setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, ...newData } } : n));
+  }, [setNodes]);
+
   return (
-    <Layout onRun={runSimulation} onNew={onNew} onFitView={fitView} result={result} loading={loading} components={components} onComponentsChange={setComponents}>
+    <Layout onRun={runSimulation} onNew={onNew} onFitView={fitView} result={result} loading={loading} components={components} onComponentsChange={setComponents} selectedNode={selectedNode} onNodeDataChange={onNodeDataChange}>
       <div ref={reactFlowWrapper} style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
         onDragOver = {onDragOver}
         onDrop = {onDrop}>
@@ -130,7 +134,9 @@ export default function App() {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           deleteKeyCode="Delete"
-          fitView>
+          onNodeClick={onNodeClick}
+          onPaneClick={() => setSelectedNodeId(null)}
+          >
           <Controls />
         </ReactFlow>
       </div>

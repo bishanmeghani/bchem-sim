@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import type { Node } from '@xyflow/react';
 import Palette from './Palette';
 import Explorer from './Explorer';
+import PropertiesPanel from './PropertiesPanel';
 
 interface LayoutProps {
     children: ReactNode;
@@ -12,11 +15,13 @@ interface LayoutProps {
     loading?: boolean;
     components?: string[];
     onComponentsChange?: (c: string[]) => void;
+    selectedNode?: Node | null;
+    onNodeDataChange?: (id: string, data: Record<string, unknown>) => void;
 }
 
 const COLLAPSE_THRESHOLD = 125;
 
-export default function Layout({ children, onRun, onNew, onFitView, result, loading, components, onComponentsChange }: LayoutProps) {
+export default function Layout({ children, onRun, onNew, onFitView, result, loading, components, onComponentsChange, selectedNode, onNodeDataChange }: LayoutProps) {
     const [explorerWidth, setExplorerWidth] = useState(200);
     const [messagesHeight, setMessagesHeight] = useState(150);
     const [rightPanelWidth, setRightPanelWidth] = useState(200);
@@ -108,7 +113,7 @@ export default function Layout({ children, onRun, onNew, onFitView, result, load
                 </div>
 
                 {/* Right Panel */}
-                <RightPanel width={rightPanelWidth} onDrag={onRightPanelDrag} onCollapse={() => setRightPanelWidth(32)} onExpand={() => setRightPanelWidth(220)}/>
+                <RightPanel width={rightPanelWidth} onDrag={onRightPanelDrag} onCollapse={() => setRightPanelWidth(32)} onExpand={() => setRightPanelWidth(220)} selectedNode={selectedNode} onNodeDataChange={onNodeDataChange} components={components}/>
 
             </div>
 
@@ -196,9 +201,13 @@ function MenuBar({ onRun, onNew, onFitView }: { onRun?: () => void; onNew?: () =
     );
 }
 
-function RightPanel({ width, onDrag, onCollapse, onExpand }: { width: number; onDrag: (e: React.MouseEvent) => void; onCollapse: () => void; onExpand: () => void}) {
+function RightPanel({ width, onDrag, onCollapse, onExpand, selectedNode, onNodeDataChange, components }: { width: number; onDrag: (e: React.MouseEvent) => void; onCollapse: () => void; onExpand: () => void; selectedNode?: Node | null; onNodeDataChange?: (id: string, data: Record<string, unknown>) => void; components?: string[];}) {
     const [activeTab, setActiveTab] = useState<'unitops' | 'properties'>('unitops');
     const collapsed = width <= 32;
+
+    useEffect(() => {
+        if (selectedNode) setActiveTab('properties');
+    }, [selectedNode]);
 
     return (
         <div style={{ width, background: '#1e293b', borderLeft: '1px solid #334155', flexShrink: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
@@ -230,9 +239,8 @@ function RightPanel({ width, onDrag, onCollapse, onExpand }: { width: number; on
                 <div style={{ flex: 1, overflowY: 'auto' }}>
                     {activeTab === 'unitops' && <Palette embedded />}
                     {activeTab === 'properties' && (
-                        <div style={{ padding: '8px 12px', fontSize: 11, color: '#475569' }}>
-                            Select a unit to view properties.
-                        </div>
+                        selectedNode ? <PropertiesPanel node={selectedNode} components={components ?? []} onNodeDataChange={onNodeDataChange ?? (() => {})} /> :
+                        <div style={{ padding: '8px 12px', fontSize: 11, color: '#475569' }}>Select a unit to view properties.</div>
                     )}
                 </div>
             )}
