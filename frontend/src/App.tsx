@@ -15,7 +15,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [components, setComponents] = useState<string[]>(['water', 'ethanol']);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const { screenToFlowPosition, fitView } = useReactFlow();
+  const { screenToFlowPosition } = useReactFlow();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const selectedNode = nodes.find(n => n.id === selectedNodeId) ?? null;
   
@@ -97,9 +97,29 @@ export default function App() {
       return;
     }
 
+    const payload = {
+      nodes: nodes.map(n => ({
+        id: n.id,
+        nodeType: n.data.nodeType,
+        label: n.data.label,
+        data: n.data,
+      })),
+      edges: edges.map(e => ({
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
+      })),
+      components,
+    }
+
     setLoading(true);
     try {
-      const res = await fetch('https://effective-goldfish-6v7jx659x7xf5rpq-8000.app.github.dev/');
+      const res = await fetch('https://effective-goldfish-6v7jx659x7xf5rpq-8000.app.github.dev/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
       const data = await res.json();
       setResult(JSON.stringify(data, null, 2));
       toast.success("Simulation converged!");
@@ -120,7 +140,7 @@ export default function App() {
   }, [setNodes]);
 
   return (
-    <Layout onRun={runSimulation} onNew={onNew} onFitView={fitView} result={result} loading={loading} components={components} onComponentsChange={setComponents} selectedNode={selectedNode} onNodeDataChange={onNodeDataChange}>
+    <Layout onRun={runSimulation} onNew={onNew} result={result} loading={loading} components={components} onComponentsChange={setComponents} selectedNode={selectedNode} onNodeDataChange={onNodeDataChange}>
       <div ref={reactFlowWrapper} style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
         onDragOver = {onDragOver}
         onDrop = {onDrop}>
