@@ -1,16 +1,29 @@
 import { Stream } from './types/types.ts';
 import { Mixer, HeatExchanger, FlashDrum, Splitter, Pump } from './unitops/unitops.ts';
 
-function runSimulationWithRecycle(freshFeed: Stream, targetT: number, targetP: number, _targetQ: number) {
+const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Content-Type": "application/json"
+};
+
+function runSimulationWithRecycle(
+    freshFeed: Stream,
+    targetT: number,
+    targetP: number,
+    _targetQ: number,
+    pumpP: number = 183000,
+    splitFraction: number = 0.6
+) {
     console.log("🌀 [Solver] Initializing Property-Method Based Tear Loop...");
-    const recycleFraction = 0.6;
 
     let recycleGuess: Stream = {
         id: "RECYCLE-STREAM",
-        massFlow: 0, 
+        massFlow: 0,
         temperature: freshFeed.temperature,
         pressure: freshFeed.pressure,
-        composition: { water: 0.3, ethanol: 0.7 },
+        composition: freshFeed.composition,
         phase: "liquid"
     };
 
@@ -19,20 +32,19 @@ function runSimulationWithRecycle(freshFeed: Stream, targetT: number, targetP: n
     let prevInput: number | null = null;
     let prevOutput: number | null = null;
 
-    for ( let iter = 1; iter <= maxIterations; iter++) {
-        const { outStream: pumpPout } = Pump.pressurised(freshFeed, 183000);
+    for (let iter = 1; iter <= maxIterations; iter++) {
+        const { outStream: pumpPout } = Pump.pressurised(freshFeed, pumpP);
         const mixerOut = Mixer.mix([pumpPout, recycleGuess]);
         const { outStream: heaterOut, duty: Q } = HeatExchanger.fromOutletTemp(mixerOut, targetT);
         const { vaporStream, liquidStream } = FlashDrum.flashTP(heaterOut, targetT, targetP);
-        //const { vaporStream, liquidStream } = FlashDrum.flashPQ(heaterOut, targetP, targetQ)
-        const [liquidRecycle, liquidProduct] = Splitter.split(liquidStream, [recycleFraction, 1-recycleFraction]);
+        const [liquidRecycle, liquidProduct] = Splitter.split(liquidStream, [splitFraction, 1 - splitFraction]);
 
         const currentInput = recycleGuess.massFlow;
-        const currentOutput = liquidRecycle. massFlow;
+        const currentOutput = liquidRecycle.massFlow;
         const error = Math.abs(currentOutput - currentInput);
 
         if (error < tolerance) {
-            console.log(`✅ [Solver] Flowsheet converged cleanly in ${iter} iterations!`);
+            console.log(`✅ [Solver] Converged in ${iter} iterations!`);
             return {
                 status: "Success",
                 converged_at_iteration: iter,
@@ -55,7 +67,7 @@ function runSimulationWithRecycle(freshFeed: Stream, targetT: number, targetP: n
         } else {
             const slope = (currentOutput - prevOutput!) / (currentInput - prevInput);
             const q = Math.max(-5, Math.min(0, slope / (slope - 1)));
-            nextFlow = (1 - q) * currentOutput + q* currentInput;
+            nextFlow = (1 - q) * currentOutput + q * currentInput;
             const totalMassFlow = mixerOut.massFlow;
             if (nextFlow < 0 || nextFlow > totalMassFlow || isNaN(nextFlow)) {
                 nextFlow = 0.5 * (currentOutput + currentInput);
@@ -72,36 +84,58 @@ function runSimulationWithRecycle(freshFeed: Stream, targetT: number, targetP: n
         };
     }
 
-    throw new Error("❌ [Solver] Flowsheet stalled or failed to reach convergence limit.");
+    throw new Error("❌ [Solver] Failed to converge.");
 }
 
-Deno.serve((_req) => {
-    console.log(">>> NEW REQUEST", Date.now());
-    
-    const corsHeaders = {
-        "Access-Control-Allow-Origin": "*",
-        "Content-Type": "application/json"
-    };
-    
-    const freshFeed: Stream = {
-        id: "FRESH-FEED",
-        massFlow: 10.0,
-        temperature: 300.0,
-        pressure: 101325,
-        composition: { water: 0.3, ethanol: 0.7 },
-        phase: "liquid"
-    };
-
-    try {
-        const simulationResult = runSimulationWithRecycle(freshFeed, 380, 183000, 35555);
-        return new Response(JSON.stringify(simulationResult, null, 2), {
-            headers: corsHeaders
-        });
-    } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        return new Response(JSON.stringify({ status: "Failed", error: errorMessage }), {
-            status: 500,
-            headers: corsHeaders
-        });
+Deno.serve(async (req) => {
+    if (req.method === "OPTIONS") {
+        return new Response(null, { headers: corsHeaders });
     }
+
+    const url = new URL(req.url);
+
+    if (req.method === "POST" && url.pathname === "/simulate") {
+        try {
+            const body = await req.json();
+            const { nodes } = body;
+
+            const feedNode = nodes.find((n: any) => n.nodeType === 'feed');
+            if (!feedNode) throw new Error("No feed node found");
+
+            const freshFeed: Stream = {
+                id: feedNode.id,
+                massFlow: feedNode.data.massFlow ?? 10,
+                temperature: feedNode.data.temperature ?? 300,
+                pressure: feedNode.data.pressure ?? 101325,
+                composition: feedNode.data.composition ?? { water: 0.3, ethanol: 0.7 },
+                phase: "liquid"
+            };
+
+            const pumpNode = nodes.find((n: any) => n.nodeType === 'pump');
+            const heaterNode = nodes.find((n: any) => n.nodeType === 'heater');
+            const flashNode = nodes.find((n: any) => n.nodeType === 'flash');
+            const splitterNode = nodes.find((n: any) => n.nodeType === 'splitter');
+
+            const pumpP = pumpNode?.data?.targetP ?? 183000;
+            const targetT = heaterNode?.data?.targetT ?? 380;
+            const targetP = flashNode?.data?.targetP ?? 183000;
+            const splitFraction = splitterNode?.data?.splitFraction ?? 0.6;
+
+            const result = runSimulationWithRecycle(freshFeed, targetT, targetP, 0, pumpP, splitFraction);
+
+            return new Response(JSON.stringify(result, null, 2), { headers: corsHeaders });
+
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            return new Response(JSON.stringify({ status: "Failed", error: errorMessage }), {
+                status: 500,
+                headers: corsHeaders
+            });
+        }
+    }
+
+    return new Response(JSON.stringify({ status: "Not Found" }), {
+        status: 404,
+        headers: corsHeaders
+    });
 });
