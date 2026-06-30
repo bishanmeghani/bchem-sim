@@ -2,16 +2,16 @@ import { Stream } from './types/types.ts';
 import { Mixer, HeatExchanger, FlashDrum, Splitter, Pump } from './unitops/unitops.ts';
 
 const corsHeaders = {
-    "Access-Control-Allow-Origin": '*',
-    "Access-Control-Allow-Methods": 'GET, POST, OPTIONS',
-    "Access-Control-Allow-Headers": 'Content-Type',
-    "Content-Type": 'application/json',
-}
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Content-Type": "application/json"
+};
 
 function runSimulationWithRecycle(
-    freshFeed: Stream, 
-    targetT: number, 
-    targetP: number, 
+    freshFeed: Stream,
+    targetT: number,
+    targetP: number,
     _targetQ: number,
     pumpP: number = 183000,
     splitFraction: number = 0.6
@@ -20,7 +20,7 @@ function runSimulationWithRecycle(
 
     let recycleGuess: Stream = {
         id: "RECYCLE-STREAM",
-        massFlow: 0, 
+        massFlow: 0,
         temperature: freshFeed.temperature,
         pressure: freshFeed.pressure,
         composition: freshFeed.composition,
@@ -32,20 +32,19 @@ function runSimulationWithRecycle(
     let prevInput: number | null = null;
     let prevOutput: number | null = null;
 
-    for ( let iter = 1; iter <= maxIterations; iter++) {
+    for (let iter = 1; iter <= maxIterations; iter++) {
         const { outStream: pumpPout } = Pump.pressurised(freshFeed, pumpP);
         const mixerOut = Mixer.mix([pumpPout, recycleGuess]);
         const { outStream: heaterOut, duty: Q } = HeatExchanger.fromOutletTemp(mixerOut, targetT);
         const { vaporStream, liquidStream } = FlashDrum.flashTP(heaterOut, targetT, targetP);
-        //const { vaporStream, liquidStream } = FlashDrum.flashPQ(heaterOut, targetP, targetQ)
-        const [liquidRecycle, liquidProduct] = Splitter.split(liquidStream, [splitFraction, 1-splitFraction]);
+        const [liquidRecycle, liquidProduct] = Splitter.split(liquidStream, [splitFraction, 1 - splitFraction]);
 
         const currentInput = recycleGuess.massFlow;
         const currentOutput = liquidRecycle.massFlow;
         const error = Math.abs(currentOutput - currentInput);
 
         if (error < tolerance) {
-            console.log(`✅ [Solver] Flowsheet converged cleanly in ${iter} iterations!`);
+            console.log(`✅ [Solver] Converged in ${iter} iterations!`);
             return {
                 status: "Success",
                 converged_at_iteration: iter,
@@ -68,7 +67,7 @@ function runSimulationWithRecycle(
         } else {
             const slope = (currentOutput - prevOutput!) / (currentInput - prevInput);
             const q = Math.max(-5, Math.min(0, slope / (slope - 1)));
-            nextFlow = (1 - q) * currentOutput + q* currentInput;
+            nextFlow = (1 - q) * currentOutput + q * currentInput;
             const totalMassFlow = mixerOut.massFlow;
             if (nextFlow < 0 || nextFlow > totalMassFlow || isNaN(nextFlow)) {
                 nextFlow = 0.5 * (currentOutput + currentInput);
@@ -92,13 +91,13 @@ Deno.serve(async (req) => {
     if (req.method === "OPTIONS") {
         return new Response(null, { headers: corsHeaders });
     }
-    
+
     const url = new URL(req.url);
 
-    if (req.method === "POST" && url.pathname === '/simulate') {
+    if (req.method === "POST" && url.pathname === "/simulate") {
         try {
             const body = await req.json();
-            const { nodes, edges: _edges, components: _components } = body;
+            const { nodes } = body;
 
             const feedNode = nodes.find((n: any) => n.nodeType === 'feed');
             if (!feedNode) throw new Error("No feed node found");
@@ -111,6 +110,7 @@ Deno.serve(async (req) => {
                 composition: feedNode.data.composition ?? { water: 0.3, ethanol: 0.7 },
                 phase: "liquid"
             };
+
             const pumpNode = nodes.find((n: any) => n.nodeType === 'pump');
             const heaterNode = nodes.find((n: any) => n.nodeType === 'heater');
             const flashNode = nodes.find((n: any) => n.nodeType === 'flash');
@@ -119,22 +119,22 @@ Deno.serve(async (req) => {
             const pumpP = pumpNode?.data?.targetP ?? 183000;
             const targetT = heaterNode?.data?.targetT ?? 380;
             const targetP = flashNode?.data?.targetP ?? 183000;
-            const splitFraction = splitterNode?.data?.splitFraction ?? 0.4;
+            const splitFraction = splitterNode?.data?.splitFraction ?? 0.6;
 
             const result = runSimulationWithRecycle(freshFeed, targetT, targetP, 0, pumpP, splitFraction);
 
             return new Response(JSON.stringify(result, null, 2), { headers: corsHeaders });
-        }
-        catch (err) {
+
+        } catch (err) {
             const errorMessage = err instanceof Error ? err.message : String(err);
             return new Response(JSON.stringify({ status: "Failed", error: errorMessage }), {
                 status: 500,
                 headers: corsHeaders
             });
         }
-    }   
+    }
 
-    return new Response(JSON.stringify({ status: "Not found" }), {
+    return new Response(JSON.stringify({ status: "Not Found" }), {
         status: 404,
         headers: corsHeaders
     });
