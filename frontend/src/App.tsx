@@ -153,6 +153,25 @@ export default function App() {
     setHoveredEdge(null);
   }, []);
 
+  const onNodeDragStop = useCallback((_e: unknown, draggedNode: Node) => {
+    setNodes(nds => nds.map(n => {
+      if (n.id === draggedNode.id) return n;
+      const dx = n.position.x - draggedNode.position.x;
+      const dy = n.position.y - draggedNode.position.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 60) {
+        return {
+          ...n,
+          position: {
+            x: draggedNode.position.x + dx / dist * 65,
+            y: draggedNode.position.y + dy / dist * 65,
+          }
+        };
+      }
+      return n;
+    }));
+  }, [setNodes]);
+
   return (
     <Layout onRun={runSimulation} onNew={onNew} onFitView={fitView} result={result} loading={loading} components={components} onComponentsChange={setComponents} selectedNode={selectedNode} onNodeDataChange={onNodeDataChange}>
       <div ref={reactFlowWrapper} style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
@@ -160,11 +179,12 @@ export default function App() {
         onDrop = {onDrop}>
         <ReactFlow
           snapToGrid={true}
-          snapGrid={[20, 20]}
+          snapGrid={[5, 5]}
           proOptions={{ hideAttribution: true }}
           nodeTypes={nodeTypes}
           nodes={nodes} edges={edges}
           onNodesChange={onNodesChange}
+          onNodeDragStop={onNodeDragStop}
           onEdgesChange={onEdgesChange}
           onEdgeMouseEnter={onEdgeMouseEnter}
           onEdgeMouseLeave={onEdgeMouseLeave}
@@ -192,18 +212,36 @@ export default function App() {
               background: '#1e293b', border: '1px solid #334155',
               borderRadius: 6, padding: '8px 12px', fontSize: 11,
               color: '#e2e8f0', zIndex: 1000, pointerEvents: 'none',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.4)', minWidth: 160
+              boxShadow: '0 4px 12px rgba(0,0,0,0.6)', minWidth: 180
             }}>
               <div style={{ fontWeight: 700, marginBottom: 4, color: '#94a3b8', fontFamily: 'monospace' }}>{label}</div>
               {streamData ? <>
-                <div style={{ color: '#475569', fontSize: 10, marginBottom: 2 }}>Mass Flow: <span style={{ color: '#e2e8f0' }}>{streamData.massFlow?.toFixed(3)} kg/s</span></div>
-                <div style={{ color: '#475569', fontSize: 10, marginBottom: 2 }}>Temperature: <span style={{ color: '#e2e8f0' }}>{streamData.temperature?.toFixed(1)} K</span></div>
-                <div style={{ color: '#475569', fontSize: 10, marginBottom: 2 }}>Pressure: <span style={{ color: '#e2e8f0' }}>{streamData.pressure?.toFixed(0)} Pa</span></div>
-                <div style={{ color: '#475569', fontSize: 10, marginBottom: 2 }}>Phase: <span style={{ color: streamData.phase === 'vapor' ? '#f59e0b' : '#3b82f6' }}>{streamData.phase}</span></div>
-                <div style={{ color: '#475569', fontSize: 10, marginTop: 4, marginBottom: 2, fontWeight: 700 }}>COMPOSITION</div>
-                {Object.entries(streamData.composition ?? {}).map(([k, v]) => (
-                    <div key={k} style={{ color: '#475569', fontSize: 10 }}>{k}: <span style={{ color: '#e2e8f0' }}>{(v as number).toFixed(4)}</span></div>
-                ))}
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <tbody>
+                    {[
+                      ['Mass Flow', `${streamData.massFlow?.toFixed(3)} kg/s`],
+                      ['Temperature', `${streamData.temperature?.toFixed(1)} K`],
+                      ['Pressure', `${streamData.pressure?.toFixed(0)} Pa`],
+                      ['Phase', streamData.phase]
+                    ].map(([k, v]) => (
+                      <tr key={k}>
+                        <td style={{ color: '#64748b', paddingRight: 12, paddingBottom: 3 }}>{k}</td>
+                        <td style={{ color: k === 'Phase' ? (streamData.phase === 'vapor' ? '#f59e0b' : '#3b82f6') : '#e2e8f0', textAlign: 'right', paddingBottom: 3 }}>{v}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ color: '#64748b', fontSize: 10, fontWeight: 700, letterSpacing: 1, margin: '6px 0 4px' }}>COMPOSITION</div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <tbody>
+                    {Object.entries(streamData.composition ?? {}).map(([k, v]) => (
+                      <tr key={k}>
+                        <td style={{ color: '#64748b', paddingRight: 12, textTransform: 'capitalize' }}>{k}</td>
+                        <td style={{ color: '#e2e8f0', textAlign: 'right' }}>{(v as number).toFixed(4)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </> : <div style={{ color: '#475569', fontSize: 10 }}>No simulation data yet</div>}
             </div>
           );
