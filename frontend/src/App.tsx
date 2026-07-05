@@ -28,9 +28,11 @@ export default function App() {
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => {
       const streamNumber = eds.length + 1;
+      const streamLabel = `S${streamNumber}`;
       return addEdge({
         ...connection,
-        label: `S${streamNumber}`,
+        id: streamLabel,
+        label: streamLabel,
         type: 'step',
         style: { stroke: '#64748b', strokeWidth: 1.5 },
         markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b', width: 15, height: 15},
@@ -106,6 +108,7 @@ export default function App() {
             data: n.data,
         })),
       edges: edges.map(e => ({
+            id: e.id,
             source: e.source,
             target: e.target,
             sourceHandle: e.sourceHandle,
@@ -176,6 +179,12 @@ export default function App() {
           const edge = edges.find(e => e.id === hoveredEdge.id);
           if (!edge) return null;
           const label = edge.label as string;
+          const streamData = result ? (() => {
+            try {
+              const parsed = JSON.parse(result);
+              return parsed.streams?.[label] ?? null;
+            } catch { return null; }
+          })() : null;
           return (
             <div style={{
               position: 'fixed', left: hoveredEdge.x, top: hoveredEdge.y - 10,
@@ -183,10 +192,19 @@ export default function App() {
               background: '#1e293b', border: '1px solid #334155',
               borderRadius: 6, padding: '8px 12px', fontSize: 11,
               color: '#e2e8f0', zIndex: 1000, pointerEvents: 'none',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.4)', minWidth: 140
+              boxShadow: '0 4px 12px rgba(0,0,0,0.4)', minWidth: 160
             }}>
               <div style={{ fontWeight: 700, marginBottom: 4, color: '#94a3b8', fontFamily: 'monospace' }}>{label}</div>
-              <div style={{ color: '#475569', fontSize: 10 }}>No simulation data yet</div>
+              {streamData ? <>
+                <div style={{ color: '#475569', fontSize: 10, marginBottom: 2 }}>Mass Flow: <span style={{ color: '#e2e8f0' }}>{streamData.massFlow?.toFixed(3)} kg/s</span></div>
+                <div style={{ color: '#475569', fontSize: 10, marginBottom: 2 }}>Temperature: <span style={{ color: '#e2e8f0' }}>{streamData.temperature?.toFixed(1)} K</span></div>
+                <div style={{ color: '#475569', fontSize: 10, marginBottom: 2 }}>Pressure: <span style={{ color: '#e2e8f0' }}>{streamData.pressure?.toFixed(0)} Pa</span></div>
+                <div style={{ color: '#475569', fontSize: 10, marginBottom: 2 }}>Phase: <span style={{ color: streamData.phase === 'vapor' ? '#f59e0b' : '#3b82f6' }}>{streamData.phase}</span></div>
+                <div style={{ color: '#475569', fontSize: 10, marginTop: 4, marginBottom: 2, fontWeight: 700 }}>COMPOSITION</div>
+                {Object.entries(streamData.composition ?? {}).map(([k, v]) => (
+                    <div key={k} style={{ color: '#475569', fontSize: 10 }}>{k}: <span style={{ color: '#e2e8f0' }}>{(v as number).toFixed(4)}</span></div>
+                ))}
+              </> : <div style={{ color: '#475569', fontSize: 10 }}>No simulation data yet</div>}
             </div>
           );
         })()}

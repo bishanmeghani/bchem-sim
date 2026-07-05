@@ -1,0 +1,128 @@
+import { Stream,FlowsheetNode, FlowsheetEdge } from "../types/types.ts";
+import { Mixer, HeatExchanger, FlashDrum, Splitter, Pump } from "../unitops/unitops.ts";
+
+export type StreamMap = Record<string, Stream>;
+
+function topoSort(nodes: FlowsheetNode[], edges: FlowsheetEdge[]): FlowsheetNode[] {
+    const inDegree: Record<string, number> = {};
+    const adj: Record<string, string[]> = {};
+
+    for (const n of nodes) {
+        inDegree[n.id] = 0;
+        adj[n.id] = [];
+    }
+    for (const e of edges) {
+        adj[e.source].push(e.target);
+        inDegree[e.target] = (inDegree[e.target] || 0) + 1;
+    }
+
+    const queue = nodes.filter(n => inDegree[n.id] === 0);
+    const sorted: FlowsheetNode[] = [];
+
+    while (queue.length > 0) {
+        const node = queue.shift()!;
+        sorted.push(node);
+        for (const neighbour of adj[node.id]) {
+            inDegree[neighbour]--;
+            if (inDegree[neighbour] === 0) queue.push(nodes.find(n => n.id === neighbour)!);
+        }
+    }
+    if (sorted.length !== nodes.length) throw new Error("Cycle detected in flowsheet");
+    return sorted;
+}
+
+export function executeFlowsheet(nodes: FlowsheetNode[], edges: FlowsheetEdge[], _components: string[]): { streams: StreamMap; log: string[] } {
+    const sorted = topoSort(nodes, edges);
+    const streams: StreamMap = {};
+    const log: string[] = [];
+
+    const getInlets = (nodeId: string): { handle: string | null; stream: Stream }[] => {
+        return edges.filter(e => e.target === nodeId).map(e => ({ handle: e.targetHandle, stream: streams[e.id] })).filter(x => x.stream !== undefined);
+    };
+
+    const getOutlets = (nodeId: string): FlowsheetEdge[] => {
+        return edges.filter(e => e.source === nodeId);
+    };
+
+    for (const node of sorted) {
+        const inlets = getInlets(node.id);
+        const outlets = getOutlets(node.id);
+        const data = node.data;
+        log.push(`Executing ${node.label} (${node.nodeType})`);
+        if (node.nodeType === 'feed') {
+            const feedStream: Stream = {
+                id: node.id,
+                massFlow: data.massFlow as number ?? 10,
+                temperature: data.temperature as number ?? 300,
+                pressure: data.pressure as number ?? 101325,
+                composition: data.composition as Record<string, number> ?? { water: 0.3, ethanol: 0.7},
+                phase: "liquid"
+            };
+            for (const outlet of outlets) {
+                streams[outlet.id] = { ...feedStream, id: outlet.id };
+            }
+        }
+
+        else if (node.nodeType === 'pump') {
+            if (inlets.length === 0) throw new Error(`Pump ${node.label} has no inlet`);
+            const targetP = data.targetP as number ?? 183000;
+            const { outStream } = Pump.pressurised(inlets[0].stream, targetP);
+            for (const outlet of outlets) {
+                streams[outlet.id] = { ...outStream, id: outlet.id };
+            }
+            log.push(` Pump: P=${targetP} Pa`);
+        }
+
+        else if (node.nodeType === 'mixer') {
+            if (inlets.length === 0) throw new Error(`Mixer ${node.label} has no inlet`);
+            const mixOut = Mixer.mix(inlets.map(i => i.stream));
+            for (const outlet of outlets) {
+                streams[outlet.id] = { ...mixOut, id: outlet.id };
+            }
+            log.push(` Mixer: ${inlets.length} inlets, massFlow = ${mixOut.massFlow.toFixed(3)} kg/s`);
+        }
+
+        else if (node.nodeType === 'heater') {
+            if (inlets.length === 0) throw new Error(`Heater ${node.label} has no inlet`);
+            const targetT = data.targetT as number ?? 380;
+            const { outStream, duty } = HeatExchanger.fromOutletTemp(inlets[0].stream, targetT);
+            for (const outlet of outlets) {
+                streams[outlet.id] = { ...outStream, id: outlet.id };
+            }
+            log.push(` Heater: T = ${targetT} K, Q = ${duty.toFixed(0)} W`);
+        }
+
+        else if (node.nodeType === 'flash') {
+            if (inlets.length === 0) throw new Error(`Flash ${node.label} has no inlet`);
+            const targetT = data.targetT as number ?? 380;
+            const targetP = data.targetP as number ?? 183000;
+            const { vaporStream, liquidStream, vaporFraction } = FlashDrum.flashTP(inlets[0].stream, targetT, targetP);
+            log.push(` Flash: ψ = ${vaporFraction.toFixed(4)}`);
+
+            for (const outlet of outlets) {
+                if (outlet.sourceHandle === 'vapor' || outlet.sourceHandle === 'top') {
+                    streams[outlet.id] = { ...vaporStream, id: outlet.id };
+                } else {
+                    streams[outlet.id] = { ...liquidStream, id: outlet.id };
+                }
+            }
+        }
+
+        else if (node.nodeType === 'splitter') {
+            if (inlets.length === 0) throw new Error(`Splitter ${node.label} has no inlet`);
+            const splitFraction = data.splitFraction as number ?? 0.6;
+            const [s1, s2] = Splitter.split(inlets[0].stream, [splitFraction, 1 - splitFraction]);
+            const outletSorted = [...outlets].sort((a, b) => (a.id > b.id ? 1 : -1));
+            if (outletSorted[0]) streams[outletSorted[0].id] = { ...s1, id: outletSorted[0].id };
+            if (outletSorted[1]) streams[outletSorted[1].id] = { ...s2, id: outletSorted[1].id };
+            log.push(` Splitter: fractions [${splitFraction}, ${(1 - splitFraction).toFixed(2)}]`);
+        }
+
+        else if (node.nodeType === 'outlet') {
+            if (inlets.length > 0) log.push(` Outlet ${node.label}: massFlow = ${inlets[0].stream.massFlow.toFixed(3)} kg/s`)
+        }
+    }
+
+    
+    return { streams, log };
+}

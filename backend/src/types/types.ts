@@ -8,3 +8,24 @@ export interface Stream {
     composition: Composition; // mass fractions
     phase: "liquid" | "vapor" | "two-phase";
 }
+
+export interface FlowsheetNode {
+    id: string;
+    nodeType: string;
+    label: string;
+    data: Record<string, unknown>;
+}
+
+export interface FlowsheetEdge {
+    id: string;
+    source: string;
+    target: string;
+    sourceHandle: string | null;
+    targetHandle: string | null;
+}
+
+export interface Flowsheet {
+    nodes: FlowsheetNode[];
+    edges: FlowsheetEdge[];
+    components: string[];
+}
