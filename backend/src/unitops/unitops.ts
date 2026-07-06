@@ -1,6 +1,23 @@
 import { Stream, Composition } from '../types/types.ts';
 import { COMPONENTS_DB } from '../data/componentsDatabase.ts';
 
+export function massToMolar(composition: Composition, massFlow: number) : { molarComposition: Composition; molarFlow: number } {
+    const totalMolesPerKg = Object.entries(composition).reduce((s, [id, massFrac]) => {
+        const mw = COMPONENTS_DB[id]?.molarMass ?? 0.030;
+        return s + massFrac / mw;
+    }, 0);
+
+    const molarComposition: Composition = {};
+    for (const [id, massFrac] of Object.entries(composition)) {
+        const mw = COMPONENTS_DB[id]?.molarMass ?? 0.030;
+        molarComposition[id] = (massFrac / mw) / totalMolesPerKg;
+    }
+
+    const avgMW = 1 / totalMolesPerKg;
+    const molarFlow = massFlow / avgMW;
+    return { molarComposition, molarFlow };
+}
+
 export function getMixtureCp(composition: Composition): number {
     let mixedCp = 0;
     let totalFraction = 0;
@@ -22,7 +39,7 @@ export class Mixer {
         const id = "mixer-out";
         const totalMassFlow = streams.reduce((s, x) => s + x.massFlow, 0);
         
-        if (totalMassFlow === 0) { return { id, massFlow: 0, temperature: streams[0].temperature, composition: {}, pressure: streams[0].pressure, phase: "liquid" }; }
+        if (totalMassFlow === 0) { return { id, massFlow: 0, molarFlow: 0, temperature: streams[0].temperature, composition: {}, molarComposition: {},pressure: streams[0].pressure, phase: "liquid" }; }
         
         const totalEnergyFlow = streams.reduce((acc, s) => {
             return acc + (s.temperature * s.massFlow * getMixtureCp(s.composition));
@@ -42,8 +59,10 @@ export class Mixer {
         }
         for (const k of Object.keys(comp)) { comp[k] = comp[k] / totalMassFlow };
 
+        const { molarComposition, molarFlow } = massToMolar(comp, totalMassFlow);
+
         const pressure = Math.min(...streams.map(s => s.pressure));
-        return { id, massFlow: totalMassFlow, temperature, composition: comp, pressure, phase: "liquid" };
+        return { id, massFlow: totalMassFlow, molarFlow, temperature, composition: comp, molarComposition, pressure, phase: "liquid" };
     }
 }
 
@@ -55,8 +74,10 @@ export class Splitter {
         return fractions.map((f, i) => ({
             id: `${stream.id}-split${i + 1}`,
             massFlow: stream.massFlow * f,
+            molarFlow: stream.molarFlow * f,
             temperature: stream.temperature,
             composition: { ...stream.composition },
+            molarComposition: { ...stream.molarComposition },
             pressure: stream.pressure,
             phase: stream.phase
         }));
@@ -85,6 +106,7 @@ export class FlashDrum {
             if (!comp) throw new Error(`Missing data for component [${component}]`);
             totalMolesInlet += massFrac / comp.molarMass;
         }
+        
         for (const [component, massFrac] of Object.entries(stream.composition)) {
             const mw = COMPONENTS_DB[component]?.molarMass ?? 0.030;
             z_mole[component] = (massFrac / mw) / totalMolesInlet;
@@ -127,16 +149,16 @@ export class FlashDrum {
 
         if (psi >= 1.0) {
             return {
-                vaporStream: { ...stream, id: `${stream.id}-vapor`, massFlow: stream.massFlow, temperature: targetT, pressure: targetP, phase: vaporPhase },
-                liquidStream: { ...stream, id: `${stream.id}-liquid`, massFlow: 0, temperature: targetT, pressure: targetP, phase: liquidPhase },
+                vaporStream: { ...stream, id: `${stream.id}-vapor`, massFlow: stream.massFlow, molarFlow: stream.molarFlow, temperature: targetT, pressure: targetP, composition: stream.composition, molarComposition: stream.molarComposition, phase: vaporPhase },
+                liquidStream: { ...stream, id: `${stream.id}-liquid`, massFlow: 0, molarFlow: 0, temperature: targetT, pressure: targetP, composition: stream.composition, molarComposition: stream.molarComposition, phase: liquidPhase },
                 vaporFraction: 1.0
             };
         } 
         
         if (psi <= 0.0) {
             return {
-                vaporStream: { ...stream, id: `${stream.id}-vapor`, massFlow: 0, temperature: targetT, pressure: targetP, phase: vaporPhase },
-                liquidStream: { ...stream, id: `${stream.id}-liquid`, massFlow: stream.massFlow, temperature: targetT, pressure: targetP, phase: liquidPhase },
+                vaporStream: { ...stream, id: `${stream.id}-vapor`, massFlow: 0, molarFlow:0, temperature: targetT, composition: stream.composition, molarComposition: stream.molarComposition, pressure: targetP, phase: vaporPhase },
+                liquidStream: { ...stream, id: `${stream.id}-liquid`, massFlow: stream.massFlow, molarFlow: stream.molarFlow, temperature: targetT, composition: stream.composition, molarComposition: stream.molarComposition, pressure: targetP, phase: liquidPhase },
                 vaporFraction: 0.0
             };
         } 
@@ -171,9 +193,12 @@ export class FlashDrum {
         const vaporMW = streamsTotalMW(vaporMoleComp);
         const massVaporFraction = psi * (vaporMW / totalInletMassMW);
 
+        const { molarComposition: vaporMolarComp, molarFlow: vaporMolarFlow } = massToMolar(vaporMassComp, stream.massFlow * massVaporFraction);
+        const { molarComposition: liquidMolarComp, molarFlow: liquidMolarFlow } = massToMolar(liquidMassComp, stream.massFlow * (1 - massVaporFraction));
+
         return {
-            vaporStream: { id: `${stream.id}-vapor`, massFlow: stream.massFlow * massVaporFraction, temperature: targetT, pressure: targetP, composition: vaporMassComp, phase: vaporPhase },
-            liquidStream: { id: `${stream.id}-liquid`, massFlow: stream.massFlow * (1 - massVaporFraction), temperature: targetT, pressure: targetP, composition: liquidMassComp, phase: liquidPhase },
+            vaporStream: { id: `${stream.id}-vapor`, massFlow: stream.massFlow * massVaporFraction, molarFlow: vaporMolarFlow, temperature: targetT, pressure: targetP, composition: vaporMassComp, molarComposition: vaporMolarComp, phase: vaporPhase },
+            liquidStream: { id: `${stream.id}-liquid`, massFlow: stream.massFlow * (1 - massVaporFraction), molarFlow: liquidMolarFlow, temperature: targetT, pressure: targetP, composition: liquidMassComp, molarComposition: liquidMolarComp, phase: liquidPhase },
             vaporFraction: massVaporFraction
         };
     }

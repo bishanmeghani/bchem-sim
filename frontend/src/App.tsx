@@ -33,7 +33,7 @@ export default function App() {
         ...connection,
         id: streamLabel,
         label: streamLabel,
-        type: 'step',
+        type: 'smoothstep',
         style: { stroke: '#64748b', strokeWidth: 1.5 },
         markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b', width: 15, height: 15},
         labelStyle: { fontSize: 10, fill: '#94a3b8' },
@@ -153,13 +153,13 @@ export default function App() {
     setHoveredEdge(null);
   }, []);
 
-  const onNodeDragStop = useCallback((_e: unknown, draggedNode: Node) => {
+  const onNodeDrag = useCallback((_e: unknown, draggedNode: Node) => {
     setNodes(nds => nds.map(n => {
       if (n.id === draggedNode.id) return n;
       const dx = n.position.x - draggedNode.position.x;
       const dy = n.position.y - draggedNode.position.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 60) {
+      if (dist < 80 && dist > 0) {
         return {
           ...n,
           position: {
@@ -184,7 +184,8 @@ export default function App() {
           nodeTypes={nodeTypes}
           nodes={nodes} edges={edges}
           onNodesChange={onNodesChange}
-          onNodeDragStop={onNodeDragStop}
+          onNodeDrag={onNodeDrag}
+          onNodeDragStop={onNodeDrag}
           onEdgesChange={onEdgesChange}
           onEdgeMouseEnter={onEdgeMouseEnter}
           onEdgeMouseLeave={onEdgeMouseLeave}
@@ -220,6 +221,7 @@ export default function App() {
                   <tbody>
                     {[
                       ['Mass Flow', `${streamData.massFlow?.toFixed(3)} kg/s`],
+                      ['Molar Flow', `${streamData.molarFlow?.toFixed(3)} mol/s`],
                       ['Temperature', `${streamData.temperature?.toFixed(1)} K`],
                       ['Pressure', `${streamData.pressure?.toFixed(0)} Pa`],
                       ['Phase', streamData.phase]
@@ -231,10 +233,21 @@ export default function App() {
                     ))}
                   </tbody>
                 </table>
-                <div style={{ color: '#64748b', fontSize: 10, fontWeight: 700, letterSpacing: 1, margin: '6px 0 4px' }}>COMPOSITION</div>
+                <div style={{ color: '#64748b', fontSize: 10, fontWeight: 700, letterSpacing: 1, margin: '6px 0 4px' }}>MASS COMPOSITION</div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                   <tbody>
                     {Object.entries(streamData.composition ?? {}).map(([k, v]) => (
+                      <tr key={k}>
+                        <td style={{ color: '#64748b', paddingRight: 12, textTransform: 'capitalize' }}>{k}</td>
+                        <td style={{ color: '#e2e8f0', textAlign: 'right' }}>{(v as number).toFixed(4)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ color: '#64748b', fontSize: 10, fontWeight: 700, letterSpacing: 1, margin: '6px 0 4px' }}>MOLAR COMPOSITION</div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <tbody>
+                    {Object.entries(streamData.molarComposition ?? {}).map(([k, v]) => (
                       <tr key={k}>
                         <td style={{ color: '#64748b', paddingRight: 12, textTransform: 'capitalize' }}>{k}</td>
                         <td style={{ color: '#e2e8f0', textAlign: 'right' }}>{(v as number).toFixed(4)}</td>

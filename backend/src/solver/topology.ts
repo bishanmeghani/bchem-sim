@@ -1,5 +1,5 @@
 import { Stream,FlowsheetNode, FlowsheetEdge } from "../types/types.ts";
-import { Mixer, HeatExchanger, FlashDrum, Splitter, Pump } from "../unitops/unitops.ts";
+import { Mixer, HeatExchanger, FlashDrum, Splitter, Pump, massToMolar } from "../unitops/unitops.ts";
 
 export type StreamMap = Record<string, Stream>;
 
@@ -50,12 +50,17 @@ export function executeFlowsheet(nodes: FlowsheetNode[], edges: FlowsheetEdge[],
         const data = node.data;
         log.push(`Executing ${node.label} (${node.nodeType})`);
         if (node.nodeType === 'feed') {
+            const composition = data.composition as Record<string, number> ?? { water: 0.3, ethanol: 0.7 };
+            const massFlow = data.massFlow as number ?? 10;
+            const { molarComposition, molarFlow } = massToMolar(composition, massFlow);
             const feedStream: Stream = {
                 id: node.id,
                 massFlow: data.massFlow as number ?? 10,
+                molarFlow,
                 temperature: data.temperature as number ?? 300,
                 pressure: data.pressure as number ?? 101325,
-                composition: data.composition as Record<string, number> ?? { water: 0.3, ethanol: 0.7},
+                composition,
+                molarComposition,
                 phase: "liquid"
             };
             for (const outlet of outlets) {
@@ -122,7 +127,6 @@ export function executeFlowsheet(nodes: FlowsheetNode[], edges: FlowsheetEdge[],
             if (inlets.length > 0) log.push(` Outlet ${node.label}: massFlow = ${inlets[0].stream.massFlow.toFixed(3)} kg/s`)
         }
     }
-
     
     return { streams, log };
 }

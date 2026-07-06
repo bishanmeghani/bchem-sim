@@ -3,9 +3,11 @@ export type Composition = Record<string, number>; // e.g. { water: 0.6, ethanol:
 export interface Stream {
     id: string;
     massFlow: number; //kg/s
+    molarFlow: number; //mol/s
     temperature: number; //K
     pressure: number; //Pa
     composition: Composition; // mass fractions
+    molarComposition: Composition; //molar fractions
     phase: "liquid" | "vapor" | "two-phase";
 }
 

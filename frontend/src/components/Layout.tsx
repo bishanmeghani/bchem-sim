@@ -117,20 +117,22 @@ export default function Layout({ children, onRun, onNew, onFitView, result, load
 
             </div>
 
-            {/* Messages — outside the flex row, at the bottom */}
-            <div style={{ height: messagesHeight, background: '#1e293b', borderTop: '1px solid #334155', flexShrink: 0, overflowY: 'auto', position: 'relative' }}>
+            {/* Messages */}
+            <div style={{ height: messagesHeight, background: '#1e293b', borderTop: '1px solid #334155', flexShrink: 0, position: 'relative' }}>
                 <div onMouseDown={onMessagesDrag}
                     style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, cursor: 'ns-resize', background: 'transparent', zIndex: 10 }}
                     onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')} />
-                <div style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ padding: '6px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #0f172a' }}>
                     {!messagesCollapsed && <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: 1 }}>MESSAGES</span>}
-                    <span onClick={() => setMessagesHeight(messagesCollapsed ? 150 : 32)} style={{ cursor: 'pointer', color: '#475569', fontSize: 14, marginLeft: 'auto' }}>
-                        {messagesCollapsed ? '▲' : '▼'}
-                    </span>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto' }}>
+                        {!messagesCollapsed && result && <StreamTable result={result} />}
+                        <span onClick={() => setMessagesHeight(messagesCollapsed ? 150 : 32)} style={{ cursor: 'pointer', color: '#475569', fontSize: 14 }}>
+                            {messagesCollapsed ? '▲' : '▼'}
+                        </span>
+                    </div>
                 </div>
-                {!messagesCollapsed && loading && <div style={{ padding: '4px 12px', fontSize: 11, color: '#94a3b8' }}>Running simulation...</div>}
-                {!messagesCollapsed && result && <pre style={{ padding: '4px 12px', fontSize: 10, color: '#94a3b8', margin: 0, whiteSpace: 'pre-wrap' }}>{result}</pre>}
+                {!messagesCollapsed && <MessagesContent result={result} loading={loading} />}
             </div>
 
         </div>
@@ -245,5 +247,116 @@ function RightPanel({ width, onDrag, onCollapse, onExpand, selectedNode, onNodeD
                 </div>
             )}
         </div>
+    );
+}
+
+function MessagesContent({ result, loading }: { result?: string | null; loading?: boolean }) {
+    if (loading) return <div style={{ padding: '8px 12px', fontSize: 11, color: '#94a3b8' }}>Running simulation...</div>;
+    if (!result) return <div style={{ padding: '8px 12px', fontSize: 11, color: '#475569' }}>No results yet — run a simulation.</div>;
+    let parsed: any = null;
+    try { parsed = JSON.parse(result) } catch { return <pre style={{ padding: '8px 12px', fontSize: 10, color: '#94a3b8', margin: 0, whiteSpace: 'pre-wrap', overflowY: 'auto' }}>{result}</pre>; }
+    if (parsed.status === 'Failed') {
+        return <div style={{ padding: '8px 12px', fontSize: 11, color: '#ef4444' }}>Error: {parsed.error}</div>
+    }
+    const streams = parsed.streams ?? {};
+    const streamIds = Object.keys(streams);
+    if (streamIds.length === 0) return <div style={{ padding: '8px 12px', fontSize: 11, color: '#475569'  }}>No streams in result.</div>;
+    const firstStream = streams[streamIds[0]];
+    const componentNames = Object.keys(firstStream?.composition ?? {});
+    const headerStyle: React.CSSProperties = { padding: '4px 10px', fontSize: 10, fontWeight: 700, color: '#475569', letterSpacing: 0.5, textAlign: 'left', whiteSpace: 'nowrap', borderBottom: '1px solid #334155' };
+    const cellStyle: React.CSSProperties = { padding: '4px 10px', fontSize: 11, color: '#e2e8f0', whiteSpace: 'nowrap', borderBottom: '1px solid #1e293b' };
+    const dimCellStyle: React.CSSProperties = { ...cellStyle, color: '#64748b' };
+
+    return (
+        <div style={{ overflowX: 'auto', overflowY: 'auto', height: 'calc(100% - 32px)' }}>
+            <table style={{ borderCollapse: 'collapse', fontSize: 11, width: '100%' }}>
+                <thead>
+                    <tr style={{ background: '#0f172a' }}>
+                        <th style={headerStyle}></th>
+                        <th style={{ ...headerStyle, textAlign: 'right' }}>Mass Flow (kg/s)</th>
+                        <th style={{ ...headerStyle, textAlign: 'right' }}>Molar Flow (mol/s)</th>
+                        <th style={{ ...headerStyle, textAlign: 'right' }}>T (K)</th>
+                        <th style={{ ...headerStyle, textAlign: 'right' }}>P (Pa)</th>
+                        <th style={{ ...headerStyle, textAlign: 'center' }}>Phase</th>
+                        {componentNames.map(c => (
+                            <th key={`mass-${c}`} style={{ ...headerStyle, textAlign: 'right' }}>{c} (mass)</th>
+                        ))}
+                        {componentNames.map(c => (
+                            <th key={`mol-${c}`} style={{ ...headerStyle, textAlign: 'right' }}>{c} (mol)</th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {streamIds.map((id, i) => {
+                        const s = streams[id];
+                        const rowBg = i % 2 === 0 ? 'transparent' : '#0f172a22';
+                        return (
+                            <tr key={id} style={{ background: rowBg }}>
+                                <td style={{ ...dimCellStyle, fontFamily: 'monospace', fontWeight: 700, color: '#60a5fa' }}>{id}</td>
+                                <td style={{ ...cellStyle, textAlign: 'right' }}>{s.massFlow?.toFixed(3)}</td>
+                                <td style={{ ...cellStyle, textAlign: 'right' }}>{s.molarFlow?.toFixed(3)}</td>
+                                <td style={{ ...cellStyle, textAlign: 'right' }}>{s.temperature?.toFixed(1)}</td>
+                                <td style={{ ...cellStyle, textAlign: 'right' }}>{s.pressure?.toFixed(0)}</td>
+                                <td style={{ ...cellStyle, textAlign: 'center', color: s.phase === 'vapor' ? '#f59e0b' : '#3b82f6' }}>{s.phase}</td>
+                                {componentNames.map(c => (
+                                    <td key={`mass-${c}`} style={{ ...cellStyle, textAlign: 'right' }}>{(s.composition?.[c] ?? 0).toFixed(4)}</td>
+                                ))}
+                                {componentNames.map(c => (
+                                    <td key={`mol-${c}`} style={{ ...cellStyle, textAlign: 'right' }}>{(s.molarComposition?.[c] ?? 0).toFixed(4)}</td>
+                                ))}
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+function StreamTable({ result }: { result: string }) {
+    const exportToExcel = () => {
+        try {
+            const parsed = JSON.parse(result);
+            const streams = parsed.streams ?? {};
+            const streamIds = Object.keys(streams);
+            if (streamIds.length === 0) return;
+            const firstStream = streams[streamIds[0]];
+            const componentNames = Object.keys(firstStream?.composition ?? {});
+            const headers = ['Stream', 'Mass Flow (kg/s)', 'Molar Flow (mol/s)', 'T (K)', 'P (Pa)', 'Phase',
+                ...componentNames.map(c => `${c} mass frac`),
+                ...componentNames.map(c => `${c} mol frac`)
+            ];
+            const rows = streamIds.map(id => {
+                const s = streams[id];
+                return [
+                    id,
+                    s.massFlow?.toFixed(3),
+                    s.molarFlow?.toFixed(3),
+                    s.temperature?.toFixed(1),
+                    s.pressure?.toFixed(0),
+                    s.phase,
+                    ...componentNames.map(c => (s.composition?.[c] ?? 0).toFixed(4)),
+                    ...componentNames.map(c => (s.molarComposition?.[c] ?? 0).toFixed(4)),
+                ];
+            });
+            const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'bchemsim_results.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch {}
+    };
+    
+    return (
+        <button onClick={exportToExcel} style={{
+            background: '#1e3a5f', border: '1px solid #2563eb', borderRadius: 4,
+            color: '#60a5fa', fontSize: 10, padding: '3px 8px', cursor: 'pointer',
+            fontWeight: 700, letterSpacing: 0.5
+        }}>
+            ↓ CSV
+        </button>
     );
 }
