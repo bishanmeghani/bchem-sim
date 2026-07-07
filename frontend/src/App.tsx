@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { ReactFlow, Controls, useNodesState, useEdgesState, addEdge, useReactFlow, MarkerType } from '@xyflow/react';
 import type { Connection, Node, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -9,20 +9,97 @@ import toast from 'react-hot-toast';
 const nodeTypes = { unitOp: UnitOpNode }
 
 export default function App() {
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const savedState = (() => {
+    try { return JSON.parse(localStorage.getItem('bchemsim_flowsheet') ?? 'null'); } catch { return null; }
+  })();
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>(savedState?.nodes ?? []);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(savedState?.edges ?? []);
   const [hoveredEdge, setHoveredEdge] = useState<{id: string, x: number, y: number} | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [components, setComponents] = useState<string[]>(['water', 'ethanol']);
+  const [components, setComponents] = useState<string[]>(savedState?.components ?? ['water', 'ethanol']);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { screenToFlowPosition, fitView } = useReactFlow();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const selectedNode = nodes.find(n => n.id === selectedNodeId) ?? null;
   
+  useEffect(() => {
+    const state = {
+        version: '1.0',
+        nodes,
+        edges,
+        components,
+    };
+    localStorage.setItem('bchemsim_flowsheet', JSON.stringify(state));
+  }, [nodes, edges, components]);
+
   const onNew = () => {
     setNodes([]);
     setEdges([]);
+    setResult(null);
+    fileHandleRef.current = null;
+    localStorage.removeItem('bchemsim_flowsheet');
+  };
+
+  const fileHandleRef = useRef<any>(null);
+
+  const onSave = async () => {
+    const state = { version: '1.0', nodes, edges, components };
+    try {
+      if (!fileHandleRef.current) {
+        fileHandleRef.current = await (window as any).showSaveFilePicker({
+          suggestedName: 'flowsheet.bchemsim',
+          types: [{ description: 'BChemSim Flowsheet', accept: { 'application/json': ['.bchemsim'] } }],
+        });
+      }
+      const writable = await fileHandleRef.current.createWritable();
+      await writable.write(JSON.stringify(state, null, 2));
+      await writable.close();
+      toast.success('Flowsheet saved');
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+          // Fallback for browsers that don't support File System Access API
+          const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'flowsheet.bchemsim';
+          a.click();
+          URL.revokeObjectURL(url);
+          toast.success('Flowsheet saved to Downloads');
+        }
+    }
+  };
+
+  const onSaveAs = async () => {
+    fileHandleRef.current = null; // force new file picker
+    await onSave();
+  };
+
+  const onLoad = () => {
+    console.log('onLoad fired, ref:', fileInputRef.current);
+    fileInputRef.current?.click();
+  };
+
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        try {
+          const state = JSON.parse(ev.target?.result as string);
+          setNodes(state.nodes ?? []);
+          setEdges(state.edges ?? []);
+          setComponents(state.components ?? ['water', 'ethanol']);
+          setResult(null);
+          toast.success('Flowsheet loaded');
+        } catch {
+          toast.error('Invalid flowsheet file');
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
   };
 
   const onConnect = useCallback(
@@ -173,10 +250,17 @@ export default function App() {
   }, [setNodes]);
 
   return (
-    <Layout onRun={runSimulation} onNew={onNew} onFitView={fitView} result={result} loading={loading} components={components} onComponentsChange={setComponents} selectedNode={selectedNode} onNodeDataChange={onNodeDataChange}>
+    <Layout onRun={runSimulation} onNew={onNew} onSave={onSave} onSaveAs={onSaveAs} onLoad={onLoad} onFitView={fitView} result={result} loading={loading} components={components} onComponentsChange={setComponents} selectedNode={selectedNode} onNodeDataChange={onNodeDataChange}>
       <div ref={reactFlowWrapper} style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
         onDragOver = {onDragOver}
         onDrop = {onDrop}>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".bchemsim,.json"
+          style={{ display: 'none' }}
+          onChange={onFileChange}
+        />
         <ReactFlow
           snapToGrid={true}
           snapGrid={[5, 5]}

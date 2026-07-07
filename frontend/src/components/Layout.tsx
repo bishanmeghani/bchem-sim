@@ -10,6 +10,9 @@ interface LayoutProps {
     children: ReactNode;
     onRun?: () => void;
     onNew?: () => void;
+    onSave?: () => void;
+    onSaveAs?: () => void;
+    onLoad?: () => void;
     onFitView?: () => void;
     result?: string | null;
     loading?: boolean;
@@ -21,7 +24,7 @@ interface LayoutProps {
 
 const COLLAPSE_THRESHOLD = 125;
 
-export default function Layout({ children, onRun, onNew, onFitView, result, loading, components, onComponentsChange, selectedNode, onNodeDataChange }: LayoutProps) {
+export default function Layout({ children, onRun, onNew, onSave, onSaveAs, onLoad, onFitView, result, loading, components, onComponentsChange, selectedNode, onNodeDataChange }: LayoutProps) {
     const [explorerWidth, setExplorerWidth] = useState(200);
     const [messagesHeight, setMessagesHeight] = useState(150);
     const [rightPanelWidth, setRightPanelWidth] = useState(200);
@@ -84,7 +87,7 @@ export default function Layout({ children, onRun, onNew, onFitView, result, load
             
             {/* Menu Bar */}
             <div style={{ height: 36, background: '#1e293b', borderBottom: '1px solid #334155', display: 'flex', alignItems: 'center', padding: '0 8px', gap: 4, flexShrink: 0 }}>
-                <MenuBar onRun={onRun} onNew={onNew} onFitView={onFitView} />
+                <MenuBar onRun={onRun} onNew={onNew} onSave={onSave} onSaveAs={onSaveAs} onLoad={onLoad} onFitView={onFitView} />
             </div>
 
             {/* Main area */}
@@ -139,7 +142,7 @@ export default function Layout({ children, onRun, onNew, onFitView, result, load
     );
 }
 
-function MenuBar({ onRun, onNew, onFitView }: { onRun?: () => void; onNew?: () => void; onFitView?: () => void}) {
+function MenuBar({ onRun, onNew, onSave, onSaveAs, onLoad, onFitView }: { onRun?: () => void; onNew?: () => void; onSave?: () => void; onSaveAs?: () => void; onLoad?: () => void; onFitView?: () => void}) {
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     
     useEffect(() => {
@@ -151,7 +154,9 @@ function MenuBar({ onRun, onNew, onFitView }: { onRun?: () => void; onNew?: () =
     const menuItems: Record<string, { label: string; action?: () => void}[]> = {
         File: [
             { label: 'New', action: onNew },
-            { label: 'Save' },
+            { label: 'Save', action: onSave },
+            { label: 'Save As', action: onSaveAs },
+            { label: 'Open', action: onLoad },
             { label: 'Export' },
         ],
         Edit: [
