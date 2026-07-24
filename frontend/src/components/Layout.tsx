@@ -278,16 +278,16 @@ function MessagesContent({ result, loading }: { result?: string | null; loading?
                 <thead>
                     <tr style={{ background: '#0f172a' }}>
                         <th style={headerStyle}></th>
-                        <th style={{ ...headerStyle, textAlign: 'right' }}>Mass Flow (kg/s)</th>
                         <th style={{ ...headerStyle, textAlign: 'right' }}>Molar Flow (mol/s)</th>
+                        <th style={{ ...headerStyle, textAlign: 'right' }}>Mass Flow (kg/s)</th>
                         <th style={{ ...headerStyle, textAlign: 'right' }}>T (K)</th>
                         <th style={{ ...headerStyle, textAlign: 'right' }}>P (Pa)</th>
                         <th style={{ ...headerStyle, textAlign: 'center' }}>Phase</th>
                         {componentNames.map(c => (
-                            <th key={`mass-${c}`} style={{ ...headerStyle, textAlign: 'right' }}>{c} (mass)</th>
+                            <th key={`mol-${c}`} style={{ ...headerStyle, textAlign: 'right' }}>{c} (mol)</th>
                         ))}
                         {componentNames.map(c => (
-                            <th key={`mol-${c}`} style={{ ...headerStyle, textAlign: 'right' }}>{c} (mol)</th>
+                            <th key={`mass-${c}`} style={{ ...headerStyle, textAlign: 'right' }}>{c} (mass)</th>
                         ))}
                     </tr>
                 </thead>
@@ -298,16 +298,16 @@ function MessagesContent({ result, loading }: { result?: string | null; loading?
                         return (
                             <tr key={id} style={{ background: rowBg }}>
                                 <td style={{ ...dimCellStyle, fontFamily: 'monospace', fontWeight: 700, color: '#60a5fa' }}>{id}</td>
-                                <td style={{ ...cellStyle, textAlign: 'right' }}>{s.massFlow?.toFixed(3)}</td>
                                 <td style={{ ...cellStyle, textAlign: 'right' }}>{s.molarFlow?.toFixed(3)}</td>
+                                <td style={{ ...cellStyle, textAlign: 'right' }}>{s.massFlow?.toFixed(3)}</td>
                                 <td style={{ ...cellStyle, textAlign: 'right' }}>{s.temperature?.toFixed(1)}</td>
                                 <td style={{ ...cellStyle, textAlign: 'right' }}>{s.pressure?.toFixed(0)}</td>
                                 <td style={{ ...cellStyle, textAlign: 'center', color: s.phase === 'vapor' ? '#f59e0b' : '#3b82f6' }}>{s.phase}</td>
                                 {componentNames.map(c => (
-                                    <td key={`mass-${c}`} style={{ ...cellStyle, textAlign: 'right' }}>{(s.composition?.[c] ?? 0).toFixed(4)}</td>
+                                    <td key={`mol-${c}`} style={{ ...cellStyle, textAlign: 'right' }}>{(s.molarComposition?.[c] ?? 0).toFixed(4)}</td>
                                 ))}
                                 {componentNames.map(c => (
-                                    <td key={`mol-${c}`} style={{ ...cellStyle, textAlign: 'right' }}>{(s.molarComposition?.[c] ?? 0).toFixed(4)}</td>
+                                    <td key={`mass-${c}`} style={{ ...cellStyle, textAlign: 'right' }}>{(s.composition?.[c] ?? 0).toFixed(4)}</td>
                                 ))}
                             </tr>
                         );

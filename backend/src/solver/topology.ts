@@ -1,5 +1,5 @@
-import { Stream,FlowsheetNode, FlowsheetEdge } from "../types/types.ts";
-import { Mixer, HeatExchanger, FlashDrum, Splitter, Pump, massToMolar } from "../unitops/unitops.ts";
+import { Mixer, HeatExchanger, FlashDrum, Splitter, Pump, massToMolar, molarToMass } from "../unitops/unitops.ts";
+import type { Stream, Composition, FlowsheetNode, FlowsheetEdge } from "../types/types.ts";
 
 export type StreamMap = Record<string, Stream>;
 

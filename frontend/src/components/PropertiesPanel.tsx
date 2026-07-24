@@ -20,7 +20,7 @@ const fieldStyle = { marginBottom: 10 };
 function BasisToggle({ basis, setBasis }: { basis: 'mass' | 'molar'; setBasis: (b: 'mass' | 'molar') => void }) {
     return (
          <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-            {(['mass', 'molar'] as const).map(b => (
+            {(['molar', 'mass'] as const).map(b => (
                 <div key={b} onClick={() => setBasis(b)}
                     style={{ flex: 1, padding: '3px 6px', fontSize: 9, fontWeight: 700, textAlign: 'center',
                         cursor: 'pointer', borderRadius: 4, letterSpacing: 0.5,
@@ -93,35 +93,28 @@ function FeedProperties({ data, components, update }: {
     components: string[];
     update: (key: string, value: unknown) => void;
 }) {
-    const [flowBasis, setFlowBasis] = useState<'mass' | 'molar'>('mass');
-    const [compBasis, setCompBasis] = useState<'mass' | 'molar'>('mass');
+    const [flowBasis, setFlowBasis] = useState<'mass' | 'molar'>('molar');
+    const [compBasis, setCompBasis] = useState<'mass' | 'molar'>('molar');
 
-    const composition = (data.composition as Record<string, number>) ?? {};
     const molarComposition = (data.molarComposition as Record<string, number>) ?? {};
-    const massFlow = data.massFlow as number ?? 10;
+    const composition = (data.composition as Record<string, number>) ?? {};
+    const molarFlow = data.molarFlow as number ?? 100;
     const temperature = data.temperature as number ?? 300;
     const pressure = data.pressure as number ?? 101325;
 
     const avgMW = components.reduce((sum, id) => {
-        return sum + (composition[id] ?? 0) * (COMPONENTS_DB[id]?.molarMass ?? 0.03);
-    }, 0) || 0.03;
+        return sum + (molarComposition[id] ?? 0) * (COMPONENTS_DB[id]?.molarMass ?? 0.030);
+    }, 0) || 0.030;
 
-    const molarFlow = massFlow / avgMW;
+    const massFlow = molarFlow * avgMW;
 
     return <>
         <BasisToggle basis={flowBasis} setBasis={setFlowBasis} />
-        <div style={fieldStyle}>
-            <label style={labelStyle}>Mass Flow (kg/s){flowBasis === 'molar' ? ' — calculated' : ''}</label>
-            <NumberInput
-                value={flowBasis === 'mass' ? massFlow : molarFlow * avgMW}
-                readOnly={flowBasis === 'molar'}
-                inputStyle={inputStyle}
-                onChange={flowBasis === 'mass' ? (v) => update('massFlow', v) : undefined} />
-        </div>
+
         <div style={fieldStyle}>
             <label style={labelStyle}>Molar Flow (mol/s){flowBasis === 'mass' ? ' — calculated' : ''}</label>
             <NumberInput
-                value={flowBasis === 'mass' ? molarFlow : (data.molarFlow as number ?? molarFlow)}
+                value={molarFlow}
                 readOnly={flowBasis === 'mass'}
                 inputStyle={inputStyle}
                 onChange={flowBasis === 'molar' ? (v) => {
@@ -129,16 +122,72 @@ function FeedProperties({ data, components, update }: {
                     update('massFlow', v * avgMW);
                 } : undefined} />
         </div>
+
+        <div style={fieldStyle}>
+            <label style={labelStyle}>Mass Flow (kg/s){flowBasis === 'molar' ? ' — calculated' : ''}</label>
+            <NumberInput
+                value={massFlow}
+                readOnly={flowBasis === 'molar'}
+                inputStyle={inputStyle}
+                onChange={flowBasis === 'mass' ? (v) => {
+                    update('massFlow', v);
+                    update('molarFlow', avgMW > 0 ? v / avgMW : 0);
+                } : undefined} />
+        </div>
+
         <div style={fieldStyle}>
             <label style={labelStyle}>Temperature (K)</label>
             <NumberInput value={temperature} inputStyle={inputStyle} onChange={(v) => update('temperature', v)} />
         </div>
+
         <div style={fieldStyle}>
             <label style={labelStyle}>Pressure (Pa)</label>
             <NumberInput value={pressure} inputStyle={inputStyle} onChange={(v) => update('pressure', v)} />
         </div>
 
         <BasisToggle basis={compBasis} setBasis={setCompBasis} />
+
+        {compBasis === 'molar' && <>
+            <div style={{ color: '#475569', fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>MOLE FRACTIONS</div>
+            {components.map((id, i) => {
+                const isLast = i === components.length - 1;
+                const val = isLast
+                    ? Math.max(0, 1 - components.slice(0, -1).reduce((s, cid) => s + (molarComposition[cid] ?? 0), 0))
+                    : (molarComposition[id] ?? 0);
+                return (
+                    <div key={id} style={fieldStyle}>
+                        <label style={labelStyle}>{COMPONENTS_DB[id]?.name ?? id}{isLast ? ' (calculated)' : ''}</label>
+                        <FractionInput
+                            value={val}
+                            readOnly={isLast}
+                            inputStyle={inputStyle}
+                            onChange={isLast ? undefined : (v) => {
+                                const newMolarComp = { ...molarComposition, [id]: v };
+                                const lastId = components[components.length - 1];
+                                newMolarComp[lastId] = Math.max(0, 1 - components.slice(0, -1).reduce((s, cid) => s + (newMolarComp[cid] ?? 0), 0));
+                                update('molarComposition', newMolarComp);
+                                const totalMW = components.reduce((s, cid) => s + (newMolarComp[cid] ?? 0) * (COMPONENTS_DB[cid]?.molarMass ?? 0.030), 0);
+                                const massComp: Record<string, number> = {};
+                                components.forEach(cid => {
+                                    massComp[cid] = totalMW > 0 ? ((newMolarComp[cid] ?? 0) * (COMPONENTS_DB[cid]?.molarMass ?? 0.030)) / totalMW : 0;
+                                });
+                                update('composition', massComp);
+                            }} />
+                    </div>
+                );
+            })}
+            <div style={{ color: '#475569', fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 6, marginTop: 8 }}>MASS FRACTIONS (calculated)</div>
+            {components.map(id => {
+                const totalMW = components.reduce((s, cid) => s + (molarComposition[cid] ?? 0) * (COMPONENTS_DB[cid]?.molarMass ?? 0.030), 0);
+                const massFrac = totalMW > 0 ? ((molarComposition[id] ?? 0) * (COMPONENTS_DB[id]?.molarMass ?? 0.030)) / totalMW : 0;
+                return (
+                    <div key={id} style={fieldStyle}>
+                        <label style={labelStyle}>{COMPONENTS_DB[id]?.name ?? id}</label>
+                        <FractionInput value={massFrac} readOnly inputStyle={inputStyle} />
+                    </div>
+                );
+            })}
+        </>}
 
         {compBasis === 'mass' && <>
             <div style={{ color: '#475569', fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>MASS FRACTIONS</div>
@@ -159,72 +208,24 @@ function FeedProperties({ data, components, update }: {
                                 const lastId = components[components.length - 1];
                                 newComp[lastId] = Math.max(0, 1 - components.slice(0, -1).reduce((s, cid) => s + (newComp[cid] ?? 0), 0));
                                 update('composition', newComp);
-                            }} />
-                    </div>
-                );
-            })}
-            <div style={{ color: '#475569', fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 6, marginTop: 8 }}>MOLAR FRACTIONS (calculated)</div>
-            {components.map(id => {
-                const totalMolesPerKg = components.reduce((s, cid) => {
-                    return s + (composition[cid] ?? 0) / (COMPONENTS_DB[cid]?.molarMass ?? 0.03);
-                }, 0);
-                const massFrac = composition[id] ?? 0;
-                const mw = COMPONENTS_DB[id]?.molarMass ?? 0.03;
-                const moleFrac = totalMolesPerKg > 0 ? (massFrac / mw) / totalMolesPerKg : 0;
-                return (
-                    <div key={id} style={fieldStyle}>
-                        <label style={labelStyle}>{COMPONENTS_DB[id]?.name ?? id}</label>
-                        <FractionInput
-                            value={moleFrac}
-                            readOnly
-                            inputStyle={inputStyle} />
-                    </div>
-                );
-            })}
-        </>}
-
-        {compBasis === 'molar' && <>
-            <div style={{ color: '#475569', fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>MOLAR FRACTIONS</div>
-            {components.map((id, i) => {
-                const isLast = i === components.length - 1;
-                const val = isLast
-                    ? Math.max(0, 1 - components.slice(0, -1).reduce((s, cid) => s + (molarComposition[cid] ?? 0), 0))
-                    : (molarComposition[id] ?? 0);
-                return (
-                    <div key={id} style={fieldStyle}>
-                        <label style={labelStyle}>{COMPONENTS_DB[id]?.name ?? id}{isLast ? ' (calculated)' : ''}</label>
-                        <FractionInput
-                            value={val}
-                            readOnly={isLast}
-                            inputStyle={inputStyle}
-                            onChange={isLast ? undefined : (v) => {
-                                const newMolarComp = { ...molarComposition, [id]: v };
-                                const lastId = components[components.length - 1];
-                                newMolarComp[lastId] = Math.max(0, 1 - components.slice(0, -1).reduce((s, cid) => s + (newMolarComp[cid] ?? 0), 0));
-                                update('molarComposition', newMolarComp);
-                                const totalMW = Object.entries(newMolarComp).reduce((s, [cid, mv]) => s + mv * (COMPONENTS_DB[cid]?.molarMass ?? 0.03), 0);
-                                const massComp: Record<string, number> = {};
+                                const totalMolesPerKg = components.reduce((s, cid) => s + (newComp[cid] ?? 0) / (COMPONENTS_DB[cid]?.molarMass ?? 0.030), 0);
+                                const molarComp: Record<string, number> = {};
                                 components.forEach(cid => {
-                                    massComp[cid] = ((newMolarComp[cid] ?? 0) * (COMPONENTS_DB[cid]?.molarMass ?? 0.03)) / totalMW;
+                                    molarComp[cid] = totalMolesPerKg > 0 ? ((newComp[cid] ?? 0) / (COMPONENTS_DB[cid]?.molarMass ?? 0.030)) / totalMolesPerKg : 0;
                                 });
-                                update('composition', massComp);
+                                update('molarComposition', molarComp);
                             }} />
                     </div>
                 );
             })}
-            <div style={{ color: '#475569', fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 6, marginTop: 8 }}>MASS FRACTIONS (calculated)</div>
+            <div style={{ color: '#475569', fontSize: 10, fontWeight: 700, letterSpacing: 1, marginBottom: 6, marginTop: 8 }}>MOLE FRACTIONS (calculated)</div>
             {components.map(id => {
-                const moleFrac = molarComposition[id] ?? 0;
-                const mw = COMPONENTS_DB[id]?.molarMass ?? 0.03;
-                const totalMW = components.reduce((s, cid) => s + (molarComposition[cid] ?? 0) * (COMPONENTS_DB[cid]?.molarMass ?? 0.03), 0);
-                const massFrac = totalMW > 0 ? (moleFrac * mw) / totalMW : 0;
+                const totalMolesPerKg = components.reduce((s, cid) => s + (composition[cid] ?? 0) / (COMPONENTS_DB[cid]?.molarMass ?? 0.030), 0);
+                const moleFrac = totalMolesPerKg > 0 ? ((composition[id] ?? 0) / (COMPONENTS_DB[id]?.molarMass ?? 0.030)) / totalMolesPerKg : 0;
                 return (
                     <div key={id} style={fieldStyle}>
                         <label style={labelStyle}>{COMPONENTS_DB[id]?.name ?? id}</label>
-                        <FractionInput
-                            value={massFrac}
-                            readOnly
-                            inputStyle={inputStyle} />
+                        <FractionInput value={moleFrac} readOnly inputStyle={inputStyle} />
                     </div>
                 );
             })}

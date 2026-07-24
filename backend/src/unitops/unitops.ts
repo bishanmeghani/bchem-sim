@@ -18,18 +18,39 @@ export function massToMolar(composition: Composition, massFlow: number) : { mola
     return { molarComposition, molarFlow };
 }
 
-export function getMixtureCp(composition: Composition): number {
-    let mixedCp = 0;
-    let totalFraction = 0;
+export function molarToMass(molarComposition: Composition, molarFlow: number) : { composition: Composition; massFlow: number } {
+    const totalMassPerMol = Object.entries(molarComposition).reduce((s, [id, moleFrac]) => {
+        const mw = COMPONENTS_DB[id]?.molarMass ?? 0.030;
+        return s + moleFrac * mw;
+    }, 0);
 
-    for (const [component, fraction] of Object.entries(composition)) {
-        const comp = COMPONENTS_DB[component];
-        if (!comp) throw new Error(`Missing Cp for component [${component}]`);
-        mixedCp += fraction * comp.cp;
-        totalFraction += fraction;
+    const composition: Composition = {};
+    for (const [id, moleFrac] of Object.entries(molarComposition)) {
+        const mw = COMPONENTS_DB[id]?.molarMass ?? 0.030;
+        composition[id] = moleFrac * mw / totalMassPerMol;
     }
 
-    return totalFraction > 0 ? mixedCp / totalFraction : 4184;
+    const massFlow = molarFlow * totalMassPerMol;
+    return {composition, massFlow};
+}
+
+function streamsTotalMW(molarComposition: Composition): number {
+    let sum = 0;
+    for (const [k, v] of Object.entries(molarComposition)) {
+        sum += v * (COMPONENTS_DB[k]?.molarMass ?? 0.030);
+    }
+    return sum;
+}
+
+export function getMixtureCp(molarComposition: Composition): number {
+    const { composition } = molarToMass(molarComposition, 1);
+    let cp = 0;
+    for (const [id, massFrac] of Object.entries(composition)) {
+        const comp = COMPONENTS_DB[id];
+        if (!comp) throw new Error(`Missing Cp for component [${id}]`);
+        cp += massFrac * comp.cp;
+    }
+    return cp;
 }
 
 export class Mixer { 
@@ -37,32 +58,34 @@ export class Mixer {
         if (streams.length === 0) throw new Error("Mixer requires feeds.");
         
         const id = "mixer-out";
-        const totalMassFlow = streams.reduce((s, x) => s + x.massFlow, 0);
+        const totalMolarFlow = streams.reduce((s, x) => s + x.molarFlow, 0);
         
-        if (totalMassFlow === 0) { return { id, massFlow: 0, molarFlow: 0, temperature: streams[0].temperature, composition: {}, molarComposition: {},pressure: streams[0].pressure, phase: "liquid" }; }
+        if (totalMolarFlow === 0) { return { id, massFlow: 0, molarFlow: 0, temperature: streams[0].temperature, composition: {}, molarComposition: {},pressure: streams[0].pressure, phase: "liquid" }; }
         
         const totalEnergyFlow = streams.reduce((acc, s) => {
-            return acc + (s.temperature * s.massFlow * getMixtureCp(s.composition));
+            const { massFlow } = molarToMass(s.molarComposition, s.molarFlow);
+            return acc + s.temperature * massFlow * getMixtureCp(s.molarComposition);
         }, 0);
 
         const totalHeatCapacityFlow = streams.reduce((acc, s) => {
-            return acc + (s.massFlow * getMixtureCp(s.composition))
+            const { massFlow } = molarToMass(s.molarComposition, s.molarFlow);
+            return acc + (massFlow * getMixtureCp(s.molarComposition))
         }, 0);
 
         const temperature = totalEnergyFlow / totalHeatCapacityFlow;
 
-        const comp: Record<string, number> = {};
+        const molarComp: Composition = {};
         for (const s of streams) {
-            for (const [k, v] of Object.entries(s.composition)) {
-                comp[k] = (comp[k] || 0) + v * s.massFlow;
+            for (const [k, v] of Object.entries(s.molarComposition)) {
+                molarComp[k] = (molarComp[k] || 0) + v * s.molarFlow;
             }
         }
-        for (const k of Object.keys(comp)) { comp[k] = comp[k] / totalMassFlow };
+        for (const k of Object.keys(molarComp)) { molarComp[k] = molarComp[k] / totalMolarFlow };
 
-        const { molarComposition, molarFlow } = massToMolar(comp, totalMassFlow);
+        const { composition, massFlow } = molarToMass(molarComp, totalMolarFlow);
 
         const pressure = Math.min(...streams.map(s => s.pressure));
-        return { id, massFlow: totalMassFlow, molarFlow, temperature, composition: comp, molarComposition, pressure, phase: "liquid" };
+        return { id, molarFlow: totalMolarFlow, massFlow, temperature, molarComposition: molarComp, composition, pressure, phase: "liquid" };
     }
 }
 
@@ -73,11 +96,11 @@ export class Splitter {
         
         return fractions.map((f, i) => ({
             id: `${stream.id}-split${i + 1}`,
-            massFlow: stream.massFlow * f,
             molarFlow: stream.molarFlow * f,
+            massFlow: stream.massFlow * f,
             temperature: stream.temperature,
-            composition: { ...stream.composition },
             molarComposition: { ...stream.molarComposition },
+            composition: { ...stream.composition },
             pressure: stream.pressure,
             phase: stream.phase
         }));
@@ -86,7 +109,7 @@ export class Splitter {
 
 export class HeatExchanger {
     static fromOutletTemp(stream: Stream, targetT: number): { outStream: Stream; duty: number} {
-        const streamCp = getMixtureCp(stream.composition);
+        const streamCp = getMixtureCp(stream.molarComposition);
         const Q = streamCp * stream.massFlow * (targetT - stream.temperature);
         const outStream: Stream = { ...stream, id: stream.id + "-hx", temperature: targetT };
         return { outStream, duty: Q };
@@ -98,21 +121,10 @@ export class FlashDrum {
         const P_mmHg = targetP / 133.322;
         const T_celsius = targetT - 273.15;
         
-        let totalMolesInlet = 0;
-        const z_mole: Record<string, number> = {};
+        const z_mole = stream.molarComposition;
         
-        for (const [component, massFrac] of Object.entries(stream.composition)) {
-            const comp = COMPONENTS_DB[component];
-            if (!comp) throw new Error(`Missing data for component [${component}]`);
-            totalMolesInlet += massFrac / comp.molarMass;
-        }
-        
-        for (const [component, massFrac] of Object.entries(stream.composition)) {
-            const mw = COMPONENTS_DB[component]?.molarMass ?? 0.030;
-            z_mole[component] = (massFrac / mw) / totalMolesInlet;
-        }
         const K_values: Record<string, number> = {};
-        for (const component of Object.keys(stream.composition)) {
+        for (const component of Object.keys(z_mole)) {
             const comp = COMPONENTS_DB[component];
             if (!comp) throw new Error(`Missing Antoine coeffs for [${component}]`);
             const logPsat = comp.antoine.A - comp.antoine.B / (T_celsius + comp.antoine.C);;
@@ -125,44 +137,40 @@ export class FlashDrum {
         const f0 = Object.entries(z_mole).reduce((s, [c, z]) => s + z * (K_values[c] - 1), 0);
         const f1 = Object.entries(z_mole).reduce((s, [c, z]) => s + z * (K_values[c] - 1) / K_values[c], 0);
 
-        if (f0 <= 0) {
-            psi = 0;
-        } else if (f1 >= 0) {
-            psi = 1;
-        } else {
-            for (let iter = 0; iter < 100; iter++) {
-                psi = 0.5 * (lo + hi);
-                const f = Object.entries(z_mole).reduce((s, [c, z]) => {
-                    return s + z * (K_values[c] - 1) / (1 + psi * (K_values[c] - 1));
-                }, 0);
-                if (Math.abs(f) < 1e-8) break;
-                if (f > 0) lo = psi;
-                else hi = psi;
-            }
-        }
-
-        // Now clamp final result to physical [0,1]
-        psi = Math.max(0, Math.min(1, psi));
-
         const vaporPhase = "vapor" as const;
         const liquidPhase = "liquid" as const;
 
-        if (psi >= 1.0) {
+        if (f0 <= 1.0) {
+            const { composition, massFlow } = molarToMass(z_mole, stream.molarFlow);
             return {
-                vaporStream: { ...stream, id: `${stream.id}-vapor`, massFlow: stream.massFlow, molarFlow: stream.molarFlow, temperature: targetT, pressure: targetP, composition: stream.composition, molarComposition: stream.molarComposition, phase: vaporPhase },
-                liquidStream: { ...stream, id: `${stream.id}-liquid`, massFlow: 0, molarFlow: 0, temperature: targetT, pressure: targetP, composition: stream.composition, molarComposition: stream.molarComposition, phase: liquidPhase },
-                vaporFraction: 1.0
-            };
-        } 
-        
-        if (psi <= 0.0) {
-            return {
-                vaporStream: { ...stream, id: `${stream.id}-vapor`, massFlow: 0, molarFlow:0, temperature: targetT, composition: stream.composition, molarComposition: stream.molarComposition, pressure: targetP, phase: vaporPhase },
-                liquidStream: { ...stream, id: `${stream.id}-liquid`, massFlow: stream.massFlow, molarFlow: stream.molarFlow, temperature: targetT, composition: stream.composition, molarComposition: stream.molarComposition, pressure: targetP, phase: liquidPhase },
+                vaporStream: { ...stream, id: `${stream.id}-vapor`, molarFlow: 0, massFlow: 0, temperature: targetT, pressure: targetP, phase: vaporPhase },
+                liquidStream: { ...stream, id: `${stream.id}-liquid`, molarFlow: stream.molarFlow, massFlow, temperature: targetT, pressure: targetP, molarComposition: z_mole, composition, phase: liquidPhase },
                 vaporFraction: 0.0
             };
         } 
-            
+        
+        if (f1 >= 0.0) {
+            const { composition, massFlow } = molarToMass(z_mole, stream.molarFlow);
+            return {
+                vaporStream: { ...stream, id: `${stream.id}-vapor`, molarFlow: stream.molarFlow, massFlow, temperature: targetT, pressure: targetP, molarComposition: z_mole, composition, phase: vaporPhase },
+                liquidStream: { ...stream, id: `${stream.id}-liquid`, molarFlow: 0, massFlow: 0, temperature: targetT, pressure: targetP, phase: liquidPhase },
+                vaporFraction: 1.0
+            };
+        } 
+
+        for (let iter = 0; iter < 100; iter++) {
+            psi = 0.5 * (lo + hi);
+            const f = Object.entries(z_mole).reduce((s, [c, z]) => {
+                return s + z * (K_values[c] - 1) / (1 + psi * (K_values[c] - 1));
+            }, 0);
+            if (Math.abs(f) < 1e-8) break;
+            if (f > 0) lo = psi;
+            else hi = psi;
+        }
+
+        psi = Math.max(0, Math.min(1, psi));
+
+        // Liquid and vapor mole fractions
         const liquidMoleComp: Composition = {};
         const vaporMoleComp: Composition = {};
 
@@ -172,35 +180,18 @@ export class FlashDrum {
             vaporMoleComp[component] = liquidMoleComp[component] * K_i;
         }
 
-            // Convert back to mass fractions
-        const liquidMassComp: Composition = {};
-        const vaporMassComp: Composition = {};
-        let liquidMassSum = 0;
-        let vaporMassSum = 0;
+        const vaporMolarFlow = stream.molarFlow * psi;
+        const liquidMolarFlow = stream.molarFlow * (1 - psi);
 
-        for (const component of Object.keys(stream.composition)) {
-            const mw = COMPONENTS_DB[component]?.molarMass ?? 0.030;
-            liquidMassComp[component] = liquidMoleComp[component] * mw;
-            vaporMassComp[component] = vaporMoleComp[component] * mw;
-            liquidMassSum += liquidMassComp[component];
-            vaporMassSum += vaporMassComp[component];
-        }
-
-        for (const k of Object.keys(liquidMassComp)) liquidMassComp[k] /= liquidMassSum;
-        for (const k of Object.keys(vaporMassComp)) vaporMassComp[k] /= vaporMassSum;
-
-        const totalInletMassMW = streamsTotalMW(z_mole);
-        const vaporMW = streamsTotalMW(vaporMoleComp);
-        const massVaporFraction = psi * (vaporMW / totalInletMassMW);
-
-        const { molarComposition: vaporMolarComp, molarFlow: vaporMolarFlow } = massToMolar(vaporMassComp, stream.massFlow * massVaporFraction);
-        const { molarComposition: liquidMolarComp, molarFlow: liquidMolarFlow } = massToMolar(liquidMassComp, stream.massFlow * (1 - massVaporFraction));
+        const { composition: liquidMassComp, massFlow: liquidMassFlow } = molarToMass(liquidMoleComp, liquidMolarFlow);
+        const { composition: vaporMassComp, massFlow: vaporMassFlow } = molarToMass(vaporMoleComp, vaporMolarFlow);
 
         return {
-            vaporStream: { id: `${stream.id}-vapor`, massFlow: stream.massFlow * massVaporFraction, molarFlow: vaporMolarFlow, temperature: targetT, pressure: targetP, composition: vaporMassComp, molarComposition: vaporMolarComp, phase: vaporPhase },
-            liquidStream: { id: `${stream.id}-liquid`, massFlow: stream.massFlow * (1 - massVaporFraction), molarFlow: liquidMolarFlow, temperature: targetT, pressure: targetP, composition: liquidMassComp, molarComposition: liquidMolarComp, phase: liquidPhase },
-            vaporFraction: massVaporFraction
+            vaporStream: { id: `${stream.id}-vapor`, molarFlow: vaporMolarFlow, massFlow: vaporMassFlow, temperature: targetT, pressure: targetP, molarComposition: vaporMoleComp, composition: vaporMassComp, phase: vaporPhase },
+            liquidStream: { id: `${stream.id}-liquid`, molarFlow: liquidMolarFlow, massFlow: liquidMassFlow, temperature: targetT, pressure: targetP, molarComposition: liquidMoleComp, composition: liquidMassComp, phase: liquidPhase },
+            vaporFraction: psi
         };
+        
     }
 
     static flashPQ(stream: Stream, targetP: number, Q: number): { vaporStream: Stream; liquidStream: Stream; vaporFraction: number } {
@@ -210,7 +201,7 @@ export class FlashDrum {
         for (let iter = 0; iter < 100; iter++) {
             const T_mid = 0.5 * (T_lo + T_hi);
             const result = FlashDrum.flashTP(stream, T_mid, targetP);
-            const Cp = getMixtureCp(stream.composition);
+            const Cp = getMixtureCp(stream.molarComposition);
             const Q_actual = Cp * stream.massFlow * (T_mid - stream.temperature);
             if (Math.abs(Q_actual - Q) < 1e-3) return result;
             if (Q_actual < Q) T_lo = T_mid;
@@ -225,13 +216,4 @@ export class Pump {
         const outStream: Stream = { ...stream, id: stream.id + "-pump", pressure: targetP };
         return { outStream, work: 0 }
     }
-}
-
-// Small helper function for molecular weight mixture averaging
-function streamsTotalMW(moleComp: Composition): number {
-    let sum = 0;
-    for (const [k, v] of Object.entries(moleComp)) {
-        sum += v * (COMPONENTS_DB[k]?.molarMass ?? 0.030);
-    }
-    return sum;
 }
